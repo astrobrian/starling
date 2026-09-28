@@ -1,4 +1,4 @@
 
 window.GAME_SETTINGS = {
-  zoom: "normal",
+  zoom: "wide",
 };
