@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Starling">
+  <meta name="theme-color" content="#1B2140">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <title>Starling</title>
+  
+  <style>
+    #app { display: none; }
+    #need-server {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: #7FB77E; font-family: -apple-system, system-ui, "Helvetica Neue", sans-serif;
+    }
+    #need-server .box {
+      max-width: 470px; margin: 24px; padding: 26px 34px 28px; border-radius: 22px;
+      background: #1B2140; color: #FFE9A8; text-align: center; line-height: 1.4;
+      box-shadow: 0 6px 0 rgba(27, 33, 64, 0.35);
+    }
+    #need-server h1 { margin: 0 0 10px; font-size: 32px; }
+    #need-server p { margin: 10px 0 0; font-size: 20px; }
+    #need-server b { color: #FFFFFF; }
+    #need-server .small { font-size: 15px; color: #8E95B5; }
+  </style>
+  <script>
+    // Opened straight from the folder (a file:// address)? The game needs its
+    // little helper, start.command, so show the message instead.
+    if (location.protocol === "file:") document.documentElement.classList.add("as-file");
+  </script>
+  
+  <link rel="preload" href="fonts/AtkinsonHyperlegible-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/AtkinsonHyperlegible-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/GowunDodum-Korean.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/fonts.css?v=0.2.0">
+  <link rel="stylesheet" href="css/style.css?v=0.2.0">
+</head>
+<body>
+  <div id="need-server">
+    <div class="box">
+      <h1>&#11088; Starling</h1>
+      <p>To play, open the <b>Starling</b> folder and double-click <b>start.command</b>.</p>
+      <p>It starts the game's little helper and opens the game in your browser.</p>
+      <p class="small">If your Mac asks whether it may open it, choose Open.</p>
+    </div>
+  </div>
+
+  <div id="app">
+  <div id="game">
+    <canvas id="world"></canvas>
+  </div>
+
+  
+  <div id="speech" class="hidden">
+    <canvas id="portrait" width="64" height="64"></canvas>
+    <div class="speech-main">
+      <div id="speech-name"></div>
+      <div id="speech-text"></div>
+      <div id="speech-under" lang="ko"></div>
+      <div id="replies"></div>
+    </div>
+    <div id="speech-next" class="hidden"></div>
+  </div>
+  <div id="hint" class="hidden"></div>
+
+  
+  <div id="name-card" class="hidden">
+    <div class="card">
+      <canvas id="name-portrait" width="64" height="64"></canvas>
+      <div class="name-row"><span class="pencil" aria-hidden="true">✏️</span><input id="name-input" maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+      <div id="name-choices"></div>
+      <button id="name-ok" aria-label="OK"></button>
+    </div>
+  </div>
+
+  
+  <div id="doll-card" class="hidden">
+    <div class="card">
+      <h2 id="doll-ask"></h2>
+      <div id="doll-choices"></div>
+      <p id="doll-picked" class="hidden"></p>
+    </div>
+  </div>
+
+  
+  <div id="day-card" class="hidden"><div class="card"><div id="day-card-icon"></div><h2 id="day-card-text"></h2><p id="day-card-sub"></p></div></div>
+
+  
+  <div id="sleep-card" class="hidden">
+    <div class="card">
+      <div id="sleep-card-icon"></div>
+      <p id="sleep-card-text"></p>
+      <div class="confirm-row"><button id="sleep-no"></button><button id="sleep-yes"></button></div>
+    </div>
+  </div>
+  <button id="evening-skip" class="hidden"></button>
+
+  
+  <div id="bubble" class="hidden" aria-live="polite"></div>
+  <div id="tiny-bubble" class="hidden"></div>
+
+  
+  <button id="menu-button" class="round-button"></button>
+  <button id="back-button" class="round-button hidden" aria-label="Back"></button>
+  <button id="look-button" class="round-button look hidden" aria-label="Look closer"></button>
+  <button id="husband-button" class="side-button hidden"><span></span></button>
+  <button id="visit-button" class="side-button hidden"><span></span></button>
+
+  
+  <div id="intro" class="hidden">
+    <canvas id="intro-sky"></canvas>
+    <div id="intro-card" class="hidden"><p id="intro-card-text"></p><p id="intro-card-korean" lang="ko"></p><div id="intro-next"></div></div>
+    <button id="intro-skip"></button>
+  </div>
+
+  
+  <div id="settings" class="hidden">
+    <div class="card">
+      <h2 id="settings-title"></h2>
+      <label><span id="music-label"></span><input id="music-volume" type="range" min="0" max="100"></label>
+      <label><span id="sound-label"></span><input id="sound-volume" type="range" min="0" max="100"></label>
+      <div class="zoom-row"><span id="zoom-label"></span><div id="zoom-choices"></div></div>
+      <div class="backup-row"><span id="backup-label"></span><div class="backup-buttons"><button id="backup-save"></button><button id="backup-load"></button></div></div>
+      <button id="settings-done"></button>
+      <p id="settings-version" class="credit version"></p>
+    </div>
+  </div>
+
+  
+  <div id="fade"></div>
+
+  
+  <div id="title">
+    <canvas id="title-sky"></canvas>
+    <div class="title-main">
+      <h1 id="title-name"></h1>
+      <button id="title-continue" class="title-big hidden"></button>
+      <div class="title-row" id="title-row">
+        <button id="title-story" class="hidden"></button>
+        <button id="title-settings"></button>
+        <button id="title-credits"></button>
+        <button id="title-new"></button>
+      </div>
+    </div>
+  </div>
+
+  
+  <button id="sky-left" class="sky-arrow hidden" aria-label="Look left">‹</button>
+  <button id="sky-right" class="sky-arrow hidden" aria-label="Look right">›</button>
+
+  
+  <div id="backup-card" class="hidden">
+    <div class="card">
+      <h2 id="backup-title"></h2>
+      <p id="backup-help"></p>
+      <textarea id="backup-text" rows="3" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <div id="backup-compare"></div>
+      <p id="backup-note"></p>
+      <div class="confirm-row"><button id="backup-go" class="hidden"></button><button id="backup-done"></button><button id="backup-undo" class="hidden"></button></div>
+    </div>
+  </div>
+  
+  <div id="backup-offer" class="hidden">
+    <div class="card">
+      <p id="backup-offer-text"></p>
+      <div id="backup-offer-what"></div>
+      <div class="confirm-row"><button id="backup-offer-yes"></button><button id="backup-offer-no"></button></div>
+    </div>
+  </div>
+
+  
+  <div id="sky-card" class="hidden">
+    <div class="card">
+      <h2 id="sky-card-title"></h2>
+      <p id="sky-card-korean"></p>
+      <div id="sky-card-words"></div>
+      <p id="sky-card-note"></p>
+      <button id="sky-card-done"></button>
+    </div>
+  </div>
+
+  
+  <div id="confirm" class="hidden">
+    <div class="card">
+      <div id="confirm-what"></div>
+      <p id="confirm-text"></p>
+      <div class="confirm-row"><button id="confirm-no"></button><button id="confirm-yes"></button></div>
+    </div>
+  </div>
+
+  
+  <div id="credits" class="hidden">
+    <div class="card">
+      <h2 id="credits-title"></h2>
+      <p id="credits-made"></p>
+      <p id="credits-thanks"></p>
+      <p id="credits-music" class="credit"></p>
+      <button id="credits-done"></button>
+    </div>
+  </div>
+
+  
+  <div id="menu" class="hidden">
+    <div class="card">
+      <button id="menu-resume"></button>
+      <button id="menu-diary"></button>
+      <button id="menu-settings"></button>
+      <button id="menu-title"></button>
+    </div>
+  </div>
+
+  
+  <div id="diary" class="hidden">
+    <div id="diary-page">
+      <div class="diary-head">
+        <span class="diary-title"><span id="diary-title-ko"></span><span id="diary-title"></span></span>
+        <span id="diary-day"></span>
+        <span id="diary-lunar"><span class="diary-moon"><canvas id="diary-moon"></canvas></span><span id="diary-lunar-text"></span></span>
+        <span id="diary-weather"><canvas id="diary-weather-icon"></canvas><span id="diary-weather-word"></span></span>
+      </div>
+      <div class="diary-body">
+        <div class="diary-picture"><canvas id="diary-picture"></canvas></div>
+        <div id="diary-text"></div>
+      </div>
+    </div>
+    <div class="diary-buttons">
+      <button id="diary-prev" class="diary-arrow"></button>
+      <div id="diary-dots"></div>
+      <button id="diary-next" class="diary-arrow"></button>
+      <button id="diary-done"></button>
+    </div>
+  </div>
+
+  <div id="turn-sideways">
+    <div class="phone-icon">📱</div>
+    <p>Please turn your phone sideways</p>
+  </div>
+  </div>
+
+  
+  <script src="data/garden-map.js?v=0.2.0"></script>
+  <script src="data/world.js?v=0.2.0"></script>
+  <script src="data/flowers.js?v=0.2.0"></script>
+  <script src="data/birds.js?v=0.2.0"></script>
+  <script src="data/animals.js?v=0.2.0"></script>
+  <script src="data/words.js?v=0.2.0"></script>
+  <script src="data/known-words.js?v=0.2.0"></script>
+  <script src="data/dialogue.js?v=0.2.0"></script>
+  <script src="data/constellations.js?v=0.2.0"></script>
+  <script src="data/moon.js?v=0.2.0"></script>
+  <script src="data/room.js?v=0.2.0"></script>
+  <script src="data/bird-schedule.js?v=0.2.0"></script>
+  <script src="data/animal-schedule.js?v=0.2.0"></script>
+  
+  <script src="data/days/day1.js?v=0.2.0"></script>
+  <script src="data/days/day2.js?v=0.2.0"></script>
+  <script src="data/dolls.js?v=0.2.0"></script>
+  <script src="data/husband.js?v=0.2.0"></script>
+  <script src="data/quirks.js?v=0.2.0"></script>
+  <script src="data/observatory.js?v=0.2.0"></script>
+  <script src="data/icons.js?v=0.2.0"></script>
+  <script src="data/player.js?v=0.2.0"></script>
+  <script src="data/music-tracks.js?v=0.2.0"></script>
+  <script src="data/ui-text.js?v=0.2.0"></script>
+  <script src="data/intro.js?v=0.2.0"></script>
+  <script src="data/diary.js?v=0.2.0"></script>
+  <script src="data/game-settings.js?v=0.2.0"></script>
+  <script src="data/version.js?v=0.2.0"></script>
+  
+  <script src="js/palette.js?v=0.2.0"></script>
+  <script src="js/art.js?v=0.2.0"></script>
+  <script src="js/birds.js?v=0.2.0"></script>
+  <script src="js/animals.js?v=0.2.0"></script>
+  <script src="js/characters.js?v=0.2.0"></script>
+  <script src="js/flowers.js?v=0.2.0"></script>
+  <script src="js/keepsakes.js?v=0.2.0"></script>
+  <script src="js/props.js?v=0.2.0"></script>
+  <script src="js/house.js?v=0.2.0"></script>
+  <script src="js/world.js?v=0.2.0"></script>
+  <script src="js/room.js?v=0.2.0"></script>
+  <script src="js/ground.js?v=0.2.0"></script>
+  <script src="js/critters.js?v=0.2.0"></script>
+  <script src="js/river.js?v=0.2.0"></script>
+  <script src="js/daylight.js?v=0.2.0"></script>
+  <script src="js/moon.js?v=0.2.0"></script>
+  <script src="js/atmosphere.js?v=0.2.0"></script>
+  <script src="js/husband.js?v=0.2.0"></script>
+  <script src="js/quirk-poses.js?v=0.2.0"></script>
+  <script src="js/quirks.js?v=0.2.0"></script>
+  <script src="js/observatory.js?v=0.2.0"></script>
+  <script src="js/sky.js?v=0.2.0"></script>
+  <script src="js/audio.js?v=0.2.0"></script>
+  <script src="js/ui.js?v=0.2.0"></script>
+  <script src="js/closeup.js?v=0.2.0"></script>
+  <script src="js/title.js?v=0.2.0"></script>
+  <script src="js/intro.js?v=0.2.0"></script>
+  <script src="js/state.js?v=0.2.0"></script>
+  <script src="js/backup.js?v=0.2.0"></script>
+  <script src="js/speech.js?v=0.2.0"></script>
+  <script src="js/diary.js?v=0.2.0"></script>
+  <script src="js/portraits.js?v=0.2.0"></script>
+  <script src="js/dolls.js?v=0.2.0"></script>
+  <script src="js/wildlife.js?v=0.2.0"></script>
+  <script src="js/favors.js?v=0.2.0"></script>
+  <script src="js/moments.js?v=0.2.0"></script>
+  <script src="js/story.js?v=0.2.0"></script>
+  <script src="js/pathfinding.js?v=0.2.0"></script>
+  <script src="js/main.js?v=0.2.0"></script>
+</body>
+</html>

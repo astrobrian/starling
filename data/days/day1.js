@@ -1,0 +1,86 @@
+
+window.DAYS = window.DAYS || {};
+
+DAYS[1] = {
+  chapter: 1,
+  weather: "sunny",
+
+  morning: [
+    "d1_window",
+    "d1_window_again",
+  ],
+
+  out: [{ outside: { alone: true } }],
+
+  favors: [
+    {
+      id: "star",
+      steps: [
+        { moment: "fallenStar", patch: 0 },
+        { say: "d1_star", learn: ["star"] },
+        { scene: [{ wait: 0.4 }, { hold: null }, { emote: "sparkles", on: "her" }, { sound: "twinkle" }, { wait: 0.4 }] },
+      ],
+    },
+
+    {
+      id: "berry",
+      noon: true,
+      steps: [
+        { moment: "tummy" },
+        "d1_berry",
+        { give: "berry", to: "magpie", from: "berryBush", emote: "sparkles", thought: "berry", hint: "d1_berry" },
+        { scene: [{ magpie: "joy" }, { emote: "heart" }, { sound: "hearts" }, { wait: 0.6 }] },
+        { say: "d1_yum", learn: ["hungry", "berry"] },
+      ],
+    },
+
+    {
+      id: "tree",
+      birds: [
+        { id: "sparrow", species: "sparrow", at: { thing: "bigTree", dx: -20, dy: -19 }, does: "perch", sortAfter: "bigTree", faceLeft: false },
+      ],
+      world: { after: [{ today: true, birds: [
+        { id: "sparrow", species: "sparrow", at: { thing: "bigTree", dx: -20, dy: -19 }, does: "perch", sortAfter: "bigTree", faceLeft: false },
+      ] }] },
+      steps: [
+        { near: "bigTree", reach: 3.2, lead: "d1_follow",
+          magpie: { perch: { thing: "bigTree", dx: 16, dy: -30 }, sortAfter: "bigTree" },
+          tapWalks: ["sparrow", "magpie"], intoView: true },
+        { learn: ["follow", "tree"] },
+        { wait: 0.4 },
+        { scene: [{ magpie: "follow" }, { wait: 0.6 }, { emote: "heart" }, { emote: "sweat", on: "sparrow" }, { wait: 0.4 }] },
+        "d1_hello_sparrow",
+        { moment: "chirpDuet", bird: "sparrow" },
+        "d1_sparrow",
+        "d1_like_me",
+        { moment: "bushPoke", bush: "berryBush", near: "bigTree" },
+        "d1_ouch",
+        { magpie: "follow" },
+        { give: "berry", to: { bird: "sparrow" }, from: "berryBush", emote: "sparkles", thought: "berry", hint: "d1_sparrow" },
+        { scene: [{ bird: "sparrow", pose: "peck" }, { sound: { chirp: "tweet", pitch: 3000 } }, { wait: 0.5 }, { bird: "sparrow", celebrate: true }, { wait: 1.0 }] },
+        "d1_sparrow_yum",
+        { friend: "sparrow" },
+      ],
+    },
+
+    {
+      id: "friends",
+      steps: [
+        { scene: [{ magpie: "head" }, { wait: 0.6 }] },
+        { say: "d1_friends", replies: { "Hello!": "d1_friend_again" } },
+        { learn: ["friend"] },
+        { friend: "magpie", quiet: true },
+        { wait: 0.6 },
+        { moment: "nameTheMagpie", lines: { named: "d1_named" } },
+        { magpie: "follow" },
+      ],
+    },
+  ],
+
+  night: {
+    lookUp: "d1_look_up",
+    learn: ["look", "up"],
+    tomorrow: "d1_tomorrow",
+    card: "theEnd",
+  },
+};

@@ -1,0 +1,55 @@
+
+window.HUSBAND = {
+  name: "Professor",
+  style: "a",
+  looks: {
+    a: {
+      hairStyle: "neat", hairColor: "hairDark", skin: "skin", eyes: "plum",
+      glasses: { shape: "square", color: "duskLavender" },
+      shirt: "navy", pants: "slacks", shoes: "hair",
+    },
+    b: {
+      hairStyle: "tousled", hairColor: "hairDark", skin: "skin", eyes: "plum",
+      glasses: { shape: "round", color: "plum" },
+      shirt: "navy", pants: "slacks", shoes: "hair",
+    },
+    c: {
+      hairStyle: "swept", hairColor: "hairDark", skin: "skin", eyes: "plum",
+      glasses: null,
+      shirt: "navy", pants: "slacks", shoes: "hair",
+    },
+  },
+  doll: { id: "rabbit", name: "Strawberry", kind: "rabbit", he: "she" },
+  voice: { chirp: "hum", pitch: 330 },
+  lines: {
+    hello: ["I'm here!", "Hello, you!"],
+    tap: [
+      "I like walking with you.",
+      "You are my star.",
+      "What a nice day!",
+      "Let's look at the birds!",
+      "You make me happy.",
+      "I love you!",
+      "Look at all the flowers!",
+      "Thank you for calling me.",
+      "Strawberry says hi!",
+    ],
+    dome: [
+      "You are my star.",
+      "I love the stars!",
+      "Look in the telescope!",
+      "I love you!",
+      "Strawberry says hi!",
+      "Thank you for coming!",
+    ],
+    wonder: ["What's that?"],
+    found: ["Look! {a thing}!", "Oh, look! {a thing}!", "There! {a thing}!"],
+    gone: ["It flew away! Bye-bye, {thing}!"],
+    thanks: ["{a thing}! Thank you!", "Oh, {a thing}! Thank you!"],
+    bye: ["See you soon!", "Back to work. Bye!"],
+    goodnight: ["Good night!"],
+    morning: ["Good morning!"],
+    goodDay: ["Have a good day!"],
+    home: ["I'm home!"],
+  },
+};

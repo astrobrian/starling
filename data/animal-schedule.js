@@ -1,0 +1,3 @@
+
+window.ANIMAL_SCHEDULE = [
+];
