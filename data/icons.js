@@ -20,18 +20,6 @@ window.ICONS = {
     ],
   },
 
-  gloom: {
-    colors: { D: "#757594" },
-    bare: true,
-    grid: [
-      "D..D..D",
-      "D..D..D",
-      "D..D..D",
-      "D..D...",
-      "...D...",
-      "...D...",
-    ],
-  },
   heart: {
     colors: { P: "petalPink", W: "cream" },
     grid: [
@@ -125,16 +113,34 @@ window.ICONS = {
       "EEE",
     ],
   },
-  zzz: {
-    colors: { Z: "duskLavender" },
+  heat: {
+    colors: { O: "persimmon", B: "pond", W: "cream", D: "#6d9cc2" },
+    bare: true,
     grid: [
-      "....ZZZ",
-      ".....Z.",
-      "....ZZZ",
-      "ZZZZ...",
-      "..Z....",
-      ".Z.....",
-      "ZZZZ...",
+      ".O..O..O.",
+      "O..O..O..",
+      ".O..O..O.",
+      "O..O..O..",
+      ".........",
+      ".D.....D.",
+      "DBD...DBD",
+      "DWD...DWD",
+      ".D.....D.",
+    ],
+  },
+  zzz: {
+    colors: { Z: "starlight" },
+    grid: [
+      ".....ZZZZ",
+      ".......Z.",
+      "......Z..",
+      ".....ZZZZ",
+      ".........",
+      "ZZZZZ....",
+      "...Z.....",
+      "..Z......",
+      ".Z.......",
+      "ZZZZZ....",
     ],
   },
 };
@@ -242,15 +248,15 @@ window.ICONS.feather = {
   ],
 };
 window.ICONS.seeds = {
-  colors: { S: "path", T: "wood", Y: "beeYellow" },
+  colors: { D: "#5B566E", S: "#E6E0CF", d: "#433F55" },
   grid: [
-    "..TT..",
-    ".S..S.",
-    ".SYYS.",
-    "SSYYSS",
-    "SSSSSS",
-    "SSSSSS",
-    ".SSSS.",
+    "....DDD...",
+    "...DSSSD..",
+    "....DDd...",
+    "..DD..DD..",
+    ".DSSD.DSSD",
+    "DSSD.DSSD.",
+    ".DD..DDd..",
   ],
 };
 window.ICONS.crackers = {
@@ -263,6 +269,20 @@ window.ICONS.crackers = {
     "PPYYYPP",
     "PPPYPPP",
     "PPPPPPP",
+  ],
+};
+window.ICONS.persimmonLater = {
+  colors: { B: "bark", L: "#8E9A52", S: "bark", P: "persimmon", H: "#F9C07E", p: "#D9743A" },
+  grid: [
+    "BBB........",
+    "..BBBB.....",
+    ".....BBBB..",
+    "....LSL.BBB",
+    "...PPPPP...",
+    "..PHPPPPP..",
+    "..PPPPPPp..",
+    "..pPPPPpp..",
+    "...ppppp...",
   ],
 };
 window.ICONS.persimmon = {
@@ -350,7 +370,7 @@ function pickedFlowerIcon(petal, shade, center) {
     ],
   };
 }
-window.ICONS.flowerRed = pickedFlowerIcon("coral", "#ce656d", "beeYellow");
+window.ICONS.flowerRed = pickedFlowerIcon("scarlet", "#b83d4c", "beeYellow");
 window.ICONS.flowerYellow = pickedFlowerIcon("butter", "#d5b26b", "persimmon");
 window.ICONS.flowerPink = pickedFlowerIcon("petalPink", "#cf829d", "beeYellow");
 window.ICONS.flowerWhite = pickedFlowerIcon("snow", "#C8C2D8", "beeYellow");
@@ -407,6 +427,16 @@ window.ICONS.cup = {
     "..DDD....",
   ],
 };
+window.ICONS.cupSip = {
+  colors: { C: "snow", D: "#C8C2D8", H: "#E2DDEC", T: "#C98A4B", B: "pond" },
+  grid: [
+    "CTTTC.",
+    "CCCCCH",
+    "BBBBBH",
+    "CCCCD.",
+    ".DDD..",
+  ],
+};
 window.ICONS.sweet = {
   colors: { Y: "#D08A3E", H: "#F2BD74", D: "#A5602F", S: "#9C5A2C", N: "cream" },
   grid: [
@@ -439,15 +469,20 @@ window.ICONS.crowFeather = {
 window.EMOTES = ["sweat", "sparkles", "heart", "question", "exclaim", "zzz"];
 
 window.ICONS.sun = {
-  colors: { Y: "beeYellow", L: "butter" },
+  colors: { A: "#E3A13F", Y: "beeYellow", L: "butter", W: "cream" },
+  bare: true,
   grid: [
-    "....Y....",
-    ".Y.....Y.",
-    "...YYY...",
-    "Y.YLLYY.Y",
-    "...YYY...",
-    ".Y.....Y.",
-    "....Y....",
+    ".....A.....",
+    ".A...A...A.",
+    "..A.AAA.A..",
+    "...AYYYA...",
+    "..AYLWYYA..",
+    "AAAYLLYYAAA",
+    "..AYYYYYA..",
+    "...AYYYA...",
+    "..A.AAA.A..",
+    ".A...A...A.",
+    ".....A.....",
   ],
 };
 window.ICONS.river = {
@@ -475,15 +510,20 @@ window.ICONS.sky = {
 };
 
 window.ICONS.hot = {
-  colors: { Y: "beeYellow", O: "persimmon", L: "butter" },
+  colors: { A: "#E07A3C", O: "persimmon", L: "butter", W: "cream", Y: "beeYellow" },
+  bare: true,
   grid: [
-    "Y...Y...Y",
-    ".Y..Y..Y.",
-    "...LOO...",
-    "YYYOOOYYY",
-    "...OOO...",
-    ".Y..Y..Y.",
-    "Y...Y...Y",
+    ".....Y.....",
+    ".Y...Y...Y.",
+    "..Y.AAA.Y..",
+    "...AOOOA...",
+    "..AOLWOOA..",
+    "YYAOLLOOAYY",
+    "..AOOOOOA..",
+    "...AOOOA...",
+    "..Y.AAA.Y..",
+    ".Y...Y...Y.",
+    ".....Y.....",
   ],
 };
 window.ICONS.cloudy = {
@@ -638,15 +678,15 @@ window.ICONS.apple = {
   ],
 };
 window.ICONS.plum = {
-  colors: { P: "#C65A78", p: "#A2466A", H: "#F0B3C4", S: "bark", L: "leaf" },
+  colors: { P: "#A4476F", p: "#853A5E", c: "#6E2E4E", H: "#E9A9C5", S: "bark" },
   grid: [
-    "...SL..",
-    ".PPSPP.",
-    "PHPpPPp",
-    "PPPpPpp",
-    "PPPpPpp",
-    ".pPPpp.",
-    "..ppp..",
+    "...S..",
+    ".PPPP.",
+    "PHPPcP",
+    "PPPPcp",
+    "PPPPcp",
+    "pPPcpp",
+    ".pppp.",
   ],
 };
 window.ICONS.dish = {

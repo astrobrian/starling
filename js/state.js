@@ -3,7 +3,7 @@ const State = (() => {
   const KEY = "starling.progress";
   const MORNING = "starling.morning";          // how things were when today began
   const QUICK = 30 * 60 * 1000;                 // away for less than this: pick up where she was
-  const VERSION = 3;                            // 2: Chapter 1 reworked (days from data/days/); 3: dawn, slept, again
+  const VERSION = 4;                            // 2: Chapter 1 reworked (days from data/days/); 3: dawn, slept, again; 4: days that changed after she played them
   const fresh = () => ({
     version: VERSION,
     day: 1,                  // which day of the game
@@ -25,6 +25,10 @@ const State = (() => {
     dawn: { words: [], friends: [], bridge: [] },   // what she had when this morning began (words, friends, bridge ids)
     slept: true,             // they slept together: their morning (waking up, the kiss) is still to come
     again: false,            // this morning goes on with yesterday's day ("Our friends are waiting!")
+    free: false,             // today is a free day (no day is written for its number yet): when one is, it starts from its real morning
+    wonders: 0,              // how many times she has heard him wonder "What's that?" (js/husband.js; from 3, she can ask it too)
+    hairFlower: null,        // the flower he tucked behind her ear (js/quirks.js): { day, color, center, ear }; only that day's shows
+    diaryDolls: {},          // day -> the doll that came along, for that day's diary picture (js/diary.js)
   });
   let data = fresh();
   const copy = (o) => JSON.parse(JSON.stringify(o));
@@ -48,18 +52,6 @@ const State = (() => {
   }
   const morningSteps = (d) => (Array.isArray(d.morning) ? d.morning : (d.morning && d.morning.steps) || []);
 
-  function friendsOfDay(n) {
-    const d = window.DAYS && DAYS[n];
-    if (!d) return [];
-    const out = [];
-    const scan = (steps, key) => eachStep(steps, (s) => { if (typeof s.friend === "string") out.push({ species: s.friend, id: s.id || key }); });
-    scan(morningSteps(d), `d${n}_wake`);
-    scan(d.out, `d${n}_out`);
-    for (const f of d.favors || []) scan(f.steps, `d${n}_${f.id}`);
-    if (d.night && d.night.hook) scan(d.night.hook, `d${n}_sky`);
-    return out;
-  }
-
   function addFriend(p, species, day, id) {
     p.friends = p.friends || []; p.friendDay = p.friendDay || {}; p.bridge = p.bridge || [];
     const look = window.BIRDS && BIRDS[species];
@@ -75,25 +67,54 @@ const State = (() => {
     return true;
   }
 
-  function fillEarlierDays(p, day) {
-    for (let n = 1; n < day; n++) {
-      const d = window.DAYS && DAYS[n];
-      if (!d) continue;
-      p.done[`d${n}_wake`] = true;
-      for (const f of d.favors || []) p.done[`d${n}_${f.id}`] = true;
-      p.done[`d${n}_sky`] = true;
-      for (const f of friendsOfDay(n)) addFriend(p, f.species, n, f.id);
+  function partsOf(n) {
+    const d = window.DAYS && DAYS[n];
+    if (!d) return [];
+    const part = (key, steps, extra = []) => {
+      const words = [...extra], friends = [];
+      eachStep(steps, (s) => {
+        if (s.learn) words.push(...[].concat(s.learn));
+        if (typeof s.friend === "string") friends.push({ species: s.friend, id: s.id || key });
+      });
+      return { key, words: words.filter((w) => typeof w === "string"), friends };
+    };
+    const night = d.night || {};
+    return [
+      part(`d${n}_wake`, morningSteps(d)),
+      part(`d${n}_out`, d.out),
+      ...(d.favors || []).map((f) => part(`d${n}_${f.id}`, f.steps)),
+      part(`d${n}_sky`, night.hook, [].concat(night.learn || [])),
+    ];
+  }
+
+  function catchUp(p, day) {
+    p.done = p.done || {}; p.learned = p.learned || {};
+    for (let n = 1; n <= day; n++) {
+      for (const part of partsOf(n)) {
+        const isOut = part.key === `d${n}_out`;
+        if (n < day && !isOut) p.done[part.key] = true;
+        if (!(n < day || (!isOut && p.done[part.key]))) continue;
+        for (const w of part.words) {
+          const b = typeof Words !== "undefined" ? Words.base(w) : w;
+          if (window.WORDS && WORDS[b] && !p.learned[b]) p.learned[b] = n;
+        }
+        for (const f of part.friends) addFriend(p, f.species, n, f.id);
+      }
     }
-    for (const [w, info] of Object.entries(window.WORDS || {})) if (info.day < day && !p.learned[w]) p.learned[w] = info.day;
   }
 
   const OLD_WORDS = ["river", "where", "mom", "duck", "crackers", "candy", "fish", "wait", "hide", "sky"];
   const OLD_MARKS = ["d3_duckling", "d3_feeder", "d4_crackers", "d4_heron", "d5_grebe", "d5_friends"];
   function upgrade(p) {
-    if (!p || typeof p !== "object" || typeof p.day !== "number" || p.version >= VERSION) return p;
-    let out = copy(p);
-    if (!(out.version >= 2)) out = toVersion2(out);
-    return toVersion3(out);
+    if (!p || typeof p !== "object" || typeof p.day !== "number") return p;
+    let out = p;
+    if (!(p.version >= VERSION)) {
+      out = copy(p);
+      if (!(out.version >= 2)) out = toVersion2(out);
+      if (!(out.version >= 3)) out = toVersion3(out);
+      out = toVersion4(out);
+    }
+    return freeDayWritten(out);
   }
 
   function toVersion2(p) {
@@ -114,7 +135,7 @@ const State = (() => {
       if (OLD_MARKS.includes(k) || /^day\d+$/.test(k) || (m && Number(m[1]) >= day)) delete out.done[k];
     }
     out.friends = []; out.friendDay = {}; out.bridge = [];
-    fillEarlierDays(out, day);
+    catchUp(out, day);
     out.phase = "morning"; out.scene = "room"; out.holding = null;
     if (out.dollDay >= day) { out.doll = null; out.dollDay = 0; }
     out.migrated = true;
@@ -135,20 +156,78 @@ const State = (() => {
     return out;
   }
 
-  function load() {
-    let morning = null, migrated = false;
+  function toVersion4(p) {
+    const out = { ...fresh(), ...p };
+    out.done = out.done || {}; out.learned = out.learned || {};
+    const d = window.DAYS && DAYS[out.day];
+    if (d && !(d.favors || []).some((f) => out.done[`d${out.day}_${f.id}`])) toItsMorning(out);
+    if (!d) out.free = true;                     // (a free day now: when it's written, its real morning)
+    catchUp(out, out.day);
+    const dawn = out.dawn || { words: [], friends: [], bridge: [] };
+    const union = (list, more) => [...new Set([...(list || []), ...more])];
+    out.dawn = {
+      words: union(dawn.words, Object.keys(out.learned).filter((w) => out.learned[w] < out.day)),
+      friends: union(dawn.friends, (out.friends || []).filter((s) => ((out.friendDay || {})[s] || 1) < out.day)),
+      bridge: union(dawn.bridge, (out.bridge || []).filter((b) => b.day < out.day).map((b) => b.id)),
+    };
+    out.version = 4;
+    return out;
+  }
+
+  function freeDayWritten(p) {
+    if (!p.free || !(window.DAYS && DAYS[p.day])) return p;
+    const out = copy(p);
+    toItsMorning(out);
+    out.free = false;
+    return out;
+  }
+
+  function toItsMorning(p) {
+    const today = `d${p.day}_`;
+    const marks = Object.keys(p.done || {}).filter((k) => k.startsWith(today));
+    for (const k of marks) delete p.done[k];
+    const changed = marks.length > 0 || p.phase !== "morning" || p.again;
+    p.phase = "morning"; p.scene = "room"; p.holding = null; p.slept = true; p.again = false;
+    if (p.dollDay === p.day) { p.doll = null; p.dollDay = 0; }
+    if (changed) p.migrated = true;
+    return p;
+  }
+
+  function read(key) {
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) { return { value: null, raw: null }; }     // (private mode: play without saving)
+    if (raw === null) return { value: null, raw: null };
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const p = upgrade(JSON.parse(raw));
-        migrated = !!(p && p.migrated);
-        data = { ...fresh(), ...p };
-      }
-      const m = localStorage.getItem(MORNING);
-      if (m) morning = { ...fresh(), ...upgrade(JSON.parse(m)) };
-    } catch (e) { /* private mode: play without saving */ }
+      const value = upgrade(JSON.parse(raw));
+      if (!value || typeof value !== "object" || typeof value.day !== "number") throw new Error("not a save");
+      return { value, raw };
+    } catch (e) {
+      try { localStorage.setItem(key + ".broken", raw); } catch (e2) { /* (no room) */ }
+      console.warn(`(${key} couldn't be read: its text is kept in ${key}.broken)`, e);
+      return { value: null, raw, broken: true };
+    }
+  }
+
+  let loaded = false;           // (nothing is saved until her save has been read: ?free never reads it)
+  let jumped = false;           // (?day=N is used once)
+  function load() {
+    const progress = read(KEY), kept = read(MORNING);
+    loaded = true;
+    let migrated = false;
+    const morning = kept.value ? { ...fresh(), ...kept.value } : null;
+    if (progress.value) {
+      migrated = !!progress.value.migrated;
+      data = { ...fresh(), ...progress.value };
+    } else if (morning) {
+      data = copy(morning);
+      migrated = true;
+    } else if (progress.broken || kept.broken) {
+      data = fresh();
+      frozen = true;
+      return data;
+    }
     delete data.migrated;
-    const params = new URLSearchParams(location.search);
+    const params = typeof PARAMS !== "undefined" ? PARAMS : new URLSearchParams();    // (js/dev.js)
     const quick = !migrated && !params.has("away") && data.savedAt && Date.now() - data.savedAt < QUICK;
     const dayDone = !migrated && !!data.done[`d${data.day}_sky`];
     if (migrated) { /* already that day's morning (see upgrade) */ }
@@ -157,7 +236,11 @@ const State = (() => {
     else toMorning();                        // a save from before mornings were kept
     delete data.migrated;
     const jump = Number(params.get("day"));
-    if (jump >= 1 && jump <= 30) startDay(Math.floor(jump), true);
+    if (jump >= 1 && jump <= 30 && !jumped) {
+      jumped = true;
+      if (typeof dropSwitches === "function") dropSwitches("day");
+      startDay(Math.floor(jump), true);
+    }
     else if (quick || dayDone) save();       // the morning kept stays this morning
     else beginDay();
     return data;
@@ -176,9 +259,9 @@ const State = (() => {
     data.phase = "morning"; data.scene = "room"; data.holding = null; data.slept = true;
   }
 
-  let frozen = false;           // (a backup is being brought back: nothing more to save)
+  let frozen = false;           // (a backup is being brought back, or her save can't be read: nothing more to save)
   function save() {
-    if (frozen) return;
+    if (frozen || !loaded) return;
     data.savedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* private mode */ }
   }
@@ -191,14 +274,30 @@ const State = (() => {
       friends: [...(data.friends || [])],
       bridge: (data.bridge || []).map((b) => b.id),
     };
+    if (frozen || !loaded) return;
     save();
     try { localStorage.setItem(MORNING, JSON.stringify(data)); } catch (e) { /* private mode */ }
   }
 
+  function eraseProgress() {
+    const stars = (text) => { try { return Object.keys(JSON.parse(text).learned || {}).length; } catch (e) { return -1; } };
+    try {
+      const now = localStorage.getItem(KEY), kept = localStorage.getItem(KEY + ".previous");
+      if (now !== null && (kept === null || stars(now) >= stars(kept))) {
+        localStorage.setItem(KEY + ".previous", now);
+        const m = localStorage.getItem(MORNING);
+        if (m !== null) localStorage.setItem(MORNING + ".previous", m); else localStorage.removeItem(MORNING + ".previous");
+      }
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(MORNING);
+    } catch (e) { /* private mode */ }
+    data = fresh();
+  }
+
   function startDay(day, jumping = false) {
     if (jumping) {
-      data = fresh();
-      fillEarlierDays(data, day);
+      eraseProgress();
+      catchUp(data, day);
       data.magpieName = day > 1 ? (MAGPIE_NAMES[0]) : null;
     }
     data.day = day;
@@ -207,6 +306,7 @@ const State = (() => {
     data.holding = null;
     data.slept = true;
     data.again = false;
+    data.free = !(window.DAYS && DAYS[day]);
     beginDay();
   }
 
@@ -215,6 +315,7 @@ const State = (() => {
     if (again) delete data.done[`d${day}_sky`];               // (tonight's stars again, tomorrow night)
     data.day = next;
     data.again = !!again;
+    data.free = !(window.DAYS && DAYS[next]);        // (a free day: when one is written for it, it starts from its real morning)
     data.slept = true;
     data.doll = null; data.dollDay = 0;
     data.phase = "morning";
@@ -245,10 +346,26 @@ const State = (() => {
         bridge: (data.bridge || []).filter((b) => !bridge.has(b.id)).map((b) => b.id),
       };
     },
-    reset() { data = fresh(); beginDay(); },
+    reset() { data = fresh(); frozen = false; beginDay(); },
+    eraseProgress,
     freeze() { frozen = true; },
+    addWonder() { data.wonders = (data.wonders || 0) + 1; save(); },
+    setHairFlower(f) { data.hairFlower = f || null; save(); },
+    keepDiaryDoll(day, doll) {
+      if (!doll || (data.diaryDolls || {})[day] === doll) return;
+      data.diaryDolls = { ...(data.diaryDolls || {}), [day]: doll };
+      save();
+    },
   };
 })();
+
+if (typeof PARAMS !== "undefined" && PARAMS.has("reset")) {
+  State.eraseProgress();
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith("starling.") && !k.endsWith(".previous") && !k.endsWith(".broken")) localStorage.removeItem(k);
+  } catch (e) { /* private mode */ }
+  if (typeof dropSwitches === "function") dropSwitches("reset");
+}
 
 const Words = (() => {
   const known = new Set((window.KNOWN_WORDS || []).map((w) => w.toLowerCase()));

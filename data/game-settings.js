@@ -1,4 +1,4 @@
 
 window.GAME_SETTINGS = {
-  zoom: "wide",
+  zoom: "far",          // (Brian: on her phone, far is the right start)
 };

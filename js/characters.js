@@ -9,6 +9,10 @@ function renderPlayer(look = window.PLAYER_LOOK) {
   const sing = (view, sitting = false) => [{ mouth: "o" }, { mouth: "o", eyes: "happy" }].map((x) => renderPlayerView(look, view, 0, sitting, false, x));
   const singLeft = sing("left");
   const kissLeft = renderPlayerView(look, "left", 0, false, false, { eyes: "kiss", lean: true });
+  const pourLeft = renderPlayerView(look, "left", 0, false, false, { arms: (b) => {
+    b.line(6.8, 18.6, POUR_HAND.x, POUR_HAND.y - 0.8, 2.4, look.outfit.top, { flat: false });
+    b.circle(POUR_HAND.x - 1, POUR_HAND.y - 1, 1.15, look.skin, { flat: true });
+  } });
   return {
     down: frames("down"),
     up: frames("up"),
@@ -24,12 +28,35 @@ function renderPlayer(look = window.PLAYER_LOOK) {
     acts: {
       sing: { down: sing("down"), left: singLeft, right: singLeft.map(flipCanvas), sit: sing("down", true) },
       cheer: {
-        down: renderPlayerView(look, "down", 0, false, false, { arms: "up", eyes: "happy" }),
-        up: renderPlayerView(look, "up", 0, false, false, { arms: "up" }),
+        down: raisedArms(renderPlayerView(look, "down", 0, false, false, { arms: "cheer", eyes: "happy" }), look, "down"),
+        up: raisedArms(renderPlayerView(look, "up", 0, false, false, { arms: "cheer" }), look, "up"),
       },
       kiss: { left: kissLeft, right: flipCanvas(kissLeft) },
+      pour: { left: pourLeft, right: flipCanvas(pourLeft) },
     },
   };
+}
+const POUR_HAND = { x: 2.2, y: 17.6 };
+
+const CHEER_PAD = { x: 3, y: 2 };
+function raisedArms(frame, look, view) {
+  const P = CHEER_PAD, b = new PixelBuffer(14 + 2 * P.x, 30 + P.y);
+  for (const s of [-1, 1]) {
+    const sh = [7 + s * 4 + P.x, 18.4 + P.y], bow = [7 + s * 10.4 + P.x, 11 + P.y], hand = [7 + s * 6.2 + P.x, 1 + P.y];
+    for (let t = 0; t <= 1.001; t += 0.05) {
+      const u = 1 - t, x = u * u * sh[0] + 2 * u * t * bow[0] + t * t * hand[0], y = u * u * sh[1] + 2 * u * t * bow[1] + t * t * hand[1];
+      b.circle(x, y, 1.15, look.outfit.top, { shadeAs: [7 + P.x, 12 + P.y, 11, 10] });
+    }
+    b.circle(...hand, 1.2, look.skin, { flat: true });
+  }
+  const arms = outline(b).toCanvas();
+  const c = document.createElement("canvas");
+  c.width = arms.width; c.height = arms.height;
+  const g = c.getContext("2d");
+  if (view === "up") { g.drawImage(frame, P.x, P.y); g.drawImage(arms, 0, 0); }
+  else { g.drawImage(arms, 0, 0); g.drawImage(frame, P.x, P.y); }
+  c.ox = P.x; c.oy = P.y;
+  return c;
 }
 
 function leanIn(b, hair = []) {
@@ -112,6 +139,7 @@ function drawBody(b, look, view, step = 0, sitting = false, arms = null) {
       b.line(7 + s * 3.6, 19.2, 7 + s * 5.7, 15.6, 2.3, o.top, { flat: false });
       b.circle(7 + s * 6, 14.4, 1.1, look.skin, { flat: true });
     }
+  } else if (!side && arms === "cheer") {
   } else if (!side) {
     [2.7, 11.3].forEach((ax, i) => {
       const s = i === 0 ? -1 : 1;
@@ -293,15 +321,23 @@ function tiltedHeld(name, steps, dir = 1) {
     const turned = turnBuffer(raw, steps * 0.4 * dir);
     out = icon.bare ? turned : outline(turned);
   }
-  let canvas = out ? out.toCanvas() : prop("wateringCan").canvas, spout = null;
+  let canvas = out ? out.toCanvas() : prop("wateringCan").canvas, spout = null, grip = null;
   if (!out && dir < 0) canvas = flipCanvas(canvas);
   if (out) {
     for (let i = 0; i < out.w && !spout; i++) {
       const x = dir > 0 ? out.w - 1 - i : i;
       for (let y = out.h - 1; y >= 0; y--) if (out.get(x, y)) { spout = { x, y: y + 1 }; break; }
     }
-  } else spout = { x: dir > 0 ? canvas.width - 2 : 1, y: 3 };
-  return (tiltedCache[key] = { canvas, spout, w: canvas.width, h: canvas.height });
+    const w = Math.max(...icon.grid.map((r) => r.length)), h = icon.grid.length, a = steps * 0.4 * dir;
+    const ux = (dir > 0 ? w * 0.2 : w * 0.8) - w / 2, uy = 1 - h / 2, pad = icon.bare ? 0 : 1;
+    const tw = steps ? Math.ceil(Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a))) + 1 : w;
+    const th = steps ? Math.ceil(Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a))) + 1 : h;
+    grip = { x: ux * Math.cos(a) - uy * Math.sin(a) + tw / 2 + pad, y: ux * Math.sin(a) + uy * Math.cos(a) + th / 2 + pad };
+  } else {
+    spout = { x: dir > 0 ? canvas.width - 2 : 1, y: 3 };
+    grip = { x: dir > 0 ? canvas.width * 0.2 : canvas.width * 0.8, y: 2 };
+  }
+  return (tiltedCache[key] = { canvas, spout, grip, w: canvas.width, h: canvas.height });
 }
 
 function turnBuffer(src, angle) {

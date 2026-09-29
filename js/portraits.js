@@ -16,24 +16,57 @@ function renderPortrait(who, face = "happy", look = null) {
   return portraitCache[key];
 }
 
-const BEAK_OPEN = { happy: 0.16, joy: 0.36, hungry: 0.55, curious: 0, sad: 0 };
+const BEAK_OPEN = { happy: 0.16, joy: 0.36, hungry: 0.55, curious: 0, sad: 0, hot: 0.5 };
+const HOT_BLUSH = "#EE7383";
 
 function paintPortrait(bird, face) {
   const shape = bird.shape || "songbird";
   const body = new PixelBuffer(62, 62), beak = new PixelBuffer(62, 62);
   const rig = (PORTRAIT_BODIES[shape] || PORTRAIT_BODIES.songbird)(body, beak, bird, BEAK_OPEN[face] || 0);
   const darkFace = (e) => { const c = body.get(e.x + e.w / 2, e.y + e.h / 2); return c && lightness(c) < 0.4 ? c : null; };
-  const out = outline(body);
-  out.stamp(outline(tidy(beak)), 0, 0);    // the beak has its own outline, so it shows on any face
+  const out = outline(body), beakOut = outline(tidy(beak));
+  out.stamp(beakOut, 0, 0);                // the beak has its own outline, so it shows on any face
   if (bird.blush !== false) {
-    for (const [x, y, w] of bird.cheekSpot ? rig.blush.slice(1) : rig.blush) for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < 2; dy++) out.set(x + 1 + dx, y + 1 + dy, "blush");
+    const cheeks = bird.cheekSpot ? rig.blush.slice(1) : rig.blush;
+    if (face === "hot") hotBlush(out, body, beakOut, cheeks);
+    else for (const [x, y, w] of cheeks) for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < 2; dy++) out.set(x + 1 + dx, y + 1 + dy, "blush");
   }
   for (const e of rig.eyes) drawPortraitEye(out, bird, face, e, darkFace(e));
   if (bird.pollen && rig.eyes.length > 1) portraitPollen(out, bird, rig.eyes);
+  if (face === "hot") heatOverCrown(out, body, rig.eyes[0]);
   if (face === "curious") stampIcon(out, "question", 52, 2);
-  if (face === "sad") stampIcon(out, "gloom", 52, 2);
+  if (face === "sad") {
+    const e = rig.eyes[0];
+    stampIcon(out, "sweat", Math.max(1, e.x - 10), Math.max(1, e.y - 12));
+  }
   if (face === "joy") { stampIcon(out, "sparkle", 2, 3); stampIcon(out, "sparkle", 56, 36); }
   return out;
+}
+
+function hotBlush(out, body, beakOut, cheeks) {
+  cheeks.forEach(([cx, cy, w], i) => {
+    const x0 = cx - (i === 0 ? 2 : 1), x1 = cx + w + 2;
+    for (let x = x0; x < x1; x++) for (let dy = -1; dy < 3; dy++) {
+      const edge = x === x0 || x === x1 - 1, row = dy === -1 || dy === 2;
+      if ((row && (x < x0 + 2 || x > x1 - 3)) || (edge && row)) continue;
+      if (!body.get(x, cy + dy) || beakOut.get(x + 1, cy + dy + 1)) continue;
+      out.set(x + 1, cy + dy + 1, dy === -1 ? "blush" : HOT_BLUSH);
+    }
+  });
+}
+
+function heatOverCrown(out, body, eye) {
+  const cx = eye.x + Math.round(eye.w / 2) + 3;
+  for (const lx of [cx - 7, cx, cx + 7]) {
+    let crown = -1;
+    for (let y = 0; y < eye.y && crown < 0; y++) if (body.get(lx, y)) crown = y;
+    if (crown < 0) continue;
+    for (let k = 0; k < 4; k++) {
+      const y = crown - 1 - k;                         // (+1 for the outline, then up from above it)
+      if (y < 0) break;
+      out.set(lx + 1 + (k % 2), y, "persimmon");
+    }
+  }
 }
 
 function portraitPollen(out, bird, eyes) {
@@ -126,7 +159,8 @@ const PORTRAIT_BODIES = {
     const L = long ? Math.min(17, 6 + beakLen * 1.5) : 6.5 + beakLen * 1.5;
     const h = (bird.beakH || 2.2) * 3;
     const sx = Math.min(0, 60 - (49 + L));                      // a long beak moves the bird left to fit
-    const H = [33 + sx, 25, 21, 19], B = [26 + sx, 58, 20, 14], C = [H[0] + 3, H[1] + 24, 13, 11];
+    const bulk = bird.bulk || 1;                                 // (a bulky bird, the crow: its head and body a size bigger)
+    const H = [33 + sx, 25, 21 * bulk, 19 * bulk], B = [26 + sx, 58, 20 * bulk, 14 * bulk], C = [H[0] + 3, H[1] + 24, 13 * bulk, 11 * bulk];
     const tail = bird.tail || {};
     if ((tail.length || 0) >= 6) {
       const n = tail.length;
@@ -285,6 +319,7 @@ function drawPortraitEye(out, bird, face, e, darkFace) {
   }
   if (face === "hungry" || (face === "curious" && e.near)) { W += 1; H += 1; top -= 1; }
   if (face === "sad") { top += 1; H -= 1; }
+  if (face === "hot") { top += 2; H -= 2; }         // (hot and sleepy-eyed: a lower, smaller eye under a heavy lid)
   const inEye = (dx, dy) => {
     if (dx < 0 || dy < 0 || dx >= W || dy >= H) return false;
     if ((dy === 0 || dy === H - 1) && (dx === 0 || dx === W - 1)) return false;      // round corners
@@ -316,10 +351,13 @@ function drawPortraitEye(out, bird, face, e, darkFace) {
     for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < sw; dx++) out.set(sx + dx, sy + dy, "cream");
   }
   if (W >= 4) out.set(x + W - (W >= 6 ? 3 : 2) + look[0], top + H - 3 + look[1], "cream");
-  if (face === "hungry") for (let dx = 1; dx < W - 1; dx++) out.set(x + dx, top + H - 2, mix(eye, PALETTE.cream, 0.35));
-  if (face === "sad" && e.near) {
-    for (const [dx, dy, band] of [[1, 0, 2], [0, 1, 0], [1, 1, 2], [0, 2, 2], [1, 2, 2], [0, 3, 2], [1, 3, 3]]) out.set(x + dx, top + H + dy, RAMPS.pond[band]);
+  if (face === "hot") {
+    for (let dx = 0; dx < W; dx++) out.set(x + dx, top - 1 + ((outer < 0 ? dx : W - 1 - dx) < 2 ? 1 : 0), light || "plum");
+    if (e.near) {
+      for (const [dx, dy, band] of [[1, 0, 1], [0, 1, 1], [1, 1, 0], [2, 1, 1], [0, 2, 1], [1, 2, 1], [2, 2, 2], [1, 3, 2]]) out.set(x - 5 + dx, top - 3 + dy, band === 0 ? PALETTE.cream : RAMPS.pond[band]);
+    }
   }
+  if (face === "hungry") for (let dx = 1; dx < W - 1; dx++) out.set(x + dx, top + H - 2, mix(eye, PALETTE.cream, 0.35));
 }
 
 function stampIcon(out, name, x, y) {

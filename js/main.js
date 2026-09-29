@@ -4,10 +4,6 @@ const WALK_SPEED = 5.625;    // tiles per second (90 game pixels: an even 1, 2, 
 const RUN_SPEED = 7.5;       // on long walks she eases up to this (120 pixels: 2 a frame)
 const TAP_POINTS = 44;       // the smallest tap area, in points, at any zoom
 
-const PARAMS = new URLSearchParams(location.search);
-if (PARAMS.has("reset")) {
-  try { Object.keys(localStorage).filter((k) => k.startsWith("starling.")).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ok */ }
-}
 if (PARAMS.has("night")) Daylight.set("night", 0);
 if (["morning", "noon", "sunset", "night"].includes(PARAMS.get("phase"))) Daylight.set(PARAMS.get("phase"), 0);
 const saved = {
@@ -153,7 +149,7 @@ function walkToThing(thing, says = null) {
   for (let y = thing.y; y < thing.y + thing.h; y++) for (let x = thing.x; x < thing.x + thing.w; x++) tiles.push({ x, y });
   const inside = new Set(tiles.map((t) => `${t.x},${t.y}`));
   const height = thingSprite(thing, 1).canvas.height;
-  const tall = height > 22, low = height <= 20;
+  const tall = height > 22, low = height <= 20 || !!(THINGS[thing.type] && THINGS[thing.type].beside && WORLD.garden);
   const order = low ? { front: 2, side: 0, behind: 1 } : { front: 0, side: 1, behind: 2 };
   const mine = bankSide(player.nx, player.ny);
   let spots = [];
@@ -329,7 +325,7 @@ const Player = (() => {
       const sprite = player.sitting ? (closed ? S.blink.sit : S.sit) : (closed && S.blink[f]) || S[f][0];
       return { sprite, lift: 0, facing: player.sitting ? "down" : f, raise: ease };
     }
-    if (a.name === "pour") return { sprite: S[f][0], lift: 0, facing: f, tip: ease };
+    if (a.name === "pour") return { sprite: (A.pour && A.pour[f]) || S[f][0], lift: 0, facing: f, tip: ease };
     if (a.name === "throw") return { sprite: renderPlayerThrow()[f][throwStep(t)], lift: 0, facing: f };
     if (a.name === "kiss") return { sprite: (t > 0.15 && A.kiss && A.kiss[f]) || S[f][0], lift: 0, facing: f };
     return null;
@@ -342,16 +338,19 @@ const Player = (() => {
     const herTop = Math.round(p.y) - TILE - pose.lift;
     if (a.name === "drink") {
       if (!a.item) return true;
-      const icon = heldIcons[a.item] || (heldIcons[a.item] = iconFromGrid(ICONS[a.item]).toCanvas());
-      const y = herTop + 18 - Math.round(pose.raise * 3.5);                       // from her chest up to her mouth
-      ctx2.drawImage(icon, Math.round(p.x + 8 + side * 5 - icon.width / 2), Math.round(y - icon.height / 2));
+      const name = a.item === "cup" && ICONS.cupSip ? "cupSip" : a.item, flip = name === "cupSip" && side > 0;
+      const key = name + (flip ? "~flip" : "");
+      const icon = heldIcons[key] || (heldIcons[key] = iconFromGrid(flip ? { ...ICONS[name], grid: ICONS[name].grid.map((r) => [...r].reverse().join("")) } : ICONS[name]).toCanvas());
+      const y = herTop + 20 - Math.round(pose.raise * 4);                         // from her chest up to her lips
+      ctx2.drawImage(icon, Math.round(p.x + 8 + side * 8 - icon.width / 2), Math.round(y - icon.height / 2));
       return true;
     }
-    const dir = side || 1, steps = Math.round(pose.tip * 2);
+    const dir = side || 1, steps = Math.round(pose.tip * 3);
     const can = tiltedHeld(a.item, steps, dir);
-    const x = Math.round(p.x + 8 + dir * 5 - (dir > 0 ? 0 : can.w)), y = Math.round(herTop + 15 - can.h / 2);
+    const hx = Math.round(p.x) + (dir > 0 ? 16 - POUR_HAND.x : POUR_HAND.x), hy = herTop + POUR_HAND.y;
+    const x = Math.round(hx - can.grip.x), y = Math.round(hy - can.grip.y);
     ctx2.drawImage(can.canvas, x, y);
-    a.spout = steps === 2 && can.spout ? { x: x + can.spout.x, y: y + can.spout.y, dir } : null;
+    a.spout = steps >= 2 && can.spout ? { x: x + can.spout.x, y: y + can.spout.y, dir } : null;
     return true;
   }
 
@@ -427,8 +426,7 @@ function magpieFlyTo(mode, x, y, sortY = null) {
   if (companion.act) magpieAct(null);                 // (flying off ends any act)
   const c = companion, from = companionFoot();
   if (mode === "follow") {
-    const spot = [[1, 1], [-1, 1], [1, 0], [-1, 0], [0, 1]].map(([dx, dy]) => ({ x: player.nx + dx, y: player.ny + dy })).find((p) => isWalkable(p.x, p.y))
-      || { x: player.nx, y: player.ny };
+    const spot = followSpot([[1, 1], [-1, 1], [1, 0], [-1, 0], [0, 1]]);
     c.x = c.fx = spot.x; c.y = c.fy = spot.y; c.t = 1; c.trail = [];
     x = spot.x * TILE + 8; y = spot.y * TILE + 14;
   }
@@ -444,10 +442,14 @@ function magpieAt(mode, x = 0, y = 0, sortY = null) {
   if (c.act) magpieAct(null);
   c.flight = null; c.mode = mode; c.px = x; c.py = y; c.sortY = sortY; c.pecking = false;
   if (mode === "follow") {
-    const spot = [[1, 1], [-1, 1], [1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: player.nx + dx, y: player.ny + dy })).find((p) => isWalkable(p.x, p.y))
-      || { x: player.nx, y: player.ny };
+    const spot = followSpot([[1, 1], [-1, 1], [1, 0], [-1, 0], [0, 1], [0, -1]]);
     c.x = c.fx = spot.x; c.y = c.fy = spot.y; c.t = 1; c.trail = [];
   }
+}
+
+function followSpot(offsets) {
+  const spots = offsets.map(([dx, dy]) => ({ x: player.nx + dx, y: player.ny + dy })).filter((p) => isWalkable(p.x, p.y));
+  return spots.find((p) => !hiddenBehind(p.x, p.y)) || spots[0] || { x: player.nx, y: player.ny };
 }
 
 function companionPos() {
@@ -594,6 +596,13 @@ function drawCompanion() {
   }
   ctx.drawImage(s.canvas, 0, 0);
   ctx.restore();
+  drawCompanionCarry();
+}
+
+function drawCompanionCarry() {
+  if (!companion.carry || (companion.mode === "away" && !companion.flight)) return;
+  const f = companionFoot();
+  drawInBeak(ctx, companion.carry, f.x, f.y, companion.faceLeft, companionPose(), BIRDS.magpie);
 }
 
 function companionBox() {
@@ -647,7 +656,7 @@ function thingAt(gx, gy, exact = false) {
   for (const t of WORLD.things) {
     if (!t.tappable) continue;
     const s = thingSprite(t, 1);
-    if (isSolid(s.canvas, gx - (t.footX - s.ax), gy - (t.footY - s.ay)) && (!hit || t.footY > hit.footY)) hit = t;
+    if (isSolid(s.canvas, gx - (t.footX - s.ax), gy - (t.footY - s.ay)) && (!hit || t.footY >= hit.footY)) hit = t;      // (a tie: the one drawn later, on top: her tray on the bench)
   }
   if (hit || exact) return hit;
   let near = null;
@@ -656,6 +665,19 @@ function thingAt(gx, gy, exact = false) {
     if (!t.tappable) continue;
     const sprite = thingSprite(t, 1).canvas;
     if (sprite.width >= m && sprite.height >= m) continue;     // big things need a real hit
+    const b = thingBox(t);
+    if (gx < b.x || gy < b.y || gx >= b.x + b.w || gy >= b.y + b.h) continue;
+    const d = Math.hypot(gx - (b.x + b.w / 2), gy - (b.y + b.h / 2));
+    if (!near || d < near.d) near = { t, d };
+  }
+  return near && near.t;
+}
+
+function storyThingAt(gx, gy) {
+  if (!Story || !Story.wants) return null;
+  let near = null;
+  for (const t of WORLD.things) {
+    if (!t.tappable || !Story.wants(t)) continue;
     const b = thingBox(t);
     if (gx < b.x || gy < b.y || gx >= b.x + b.w || gy >= b.y + b.h) continue;
     const d = Math.hypot(gx - (b.x + b.w / 2), gy - (b.y + b.h / 2));
@@ -681,7 +703,8 @@ function react(thing) {
     const patch = patchNear(thing.x, thing.y);
     if (patch >= 0) pendingCloseup = { patch, at: performance.now() / 1000 + 1.6, here: true };
   }
-  if (thing.type === "bench") sitOn(thing);
+  const trayHere = State.get().holding === "tray" || WORLD.things.some((o) => o.type === "breakfast" && o.y === thing.y && o.x >= thing.x && o.x < thing.x + thing.w);
+  if (thing.type === "bench" && !trayHere) sitOn(thing);
   if (thing.type === "bigTelescope") setTimeout(lookThroughTelescope, 350);
   if (Story) Story.reached(thing);
   if (thing.type === "desk" && window.Diary) {
@@ -735,7 +758,7 @@ function addThing(o, world = SCENES.garden.world) {
     type: o.type, x: o.x, y: o.y, w, h, variant: o.variant || 0,
     name: kind.name, tappable: !!kind.name, blocks: kind.blocks, wet: !!kind.wet, flat: !!kind.flat, onWall: !!kind.onWall,
     korean: kind.korean || null,
-    footX: (o.x + w / 2) * TILE, footY: (o.y + h) * TILE, bounce: 0, phase: 0,
+    footX: (o.x + w / 2) * TILE, footY: (o.y + h) * TILE + (kind.onDesk ? 1 : 0), bounce: 0, phase: 0,   // (on the desk: drawn after it)
   };
   world.things.push(t);
   blockUnder(t, world);
@@ -823,10 +846,10 @@ function lookThroughTelescope() {
   telescopeLooked = true;
   const text = window.OBSERVATORY_TEXT || {};
   Husband.says(Object.keys(State.get().learned).length ? text.stars : text.noStars);
-  UI.showBack(true);
   telescopeOpening = true;
-  setTimeout(() => {                        // (his line first, then the view tilts up)
+  setTimeout(() => {                        // (his line first, then the view tilts up, with its back arrow)
     telescopeOpening = false;
+    UI.showBack(true);
     Sky.show(State.get().day, [], { review: true }).then(() => UI.showBack(false));
   }, 1500);
 }
@@ -920,7 +943,8 @@ function handleTap(sx, sy, pointerId) {
   const gx = sx + camera.x, gy = sy + camera.y;
   popTap(gx, gy);
 
-  const wanted = WORLD.garden && Wildlife.wantedAt(gx, gy, minTap());
+  const target = storyThingAt(gx, gy);
+  const wanted = WORLD.garden && Wildlife.wantedAt(gx, gy, minTap(), !target);
   if (wanted && Story && Story.tapBird(wanted)) return;
 
   const mb = companionBox();
@@ -930,7 +954,9 @@ function handleTap(sx, sy, pointerId) {
     const s = companionSprite(), u = Math.floor(gx - mb.x), v = Math.floor(gy - mb.y);
     return isSolid(s.canvas, companion.faceLeft ? s.canvas.width - 1 - u : u, v);
   };
-  const somethingElse = onMagpie && !onMagpiePixels() && ((WORLD.garden && Wildlife.birdAt(gx, gy, 0)) || thingAt(gx, gy, true));
+  const drawnThing = onMagpie ? thingAt(gx, gy, true) : null;
+  const inFront = drawnThing && !drawnThing.flat && companion.mode !== "head" && drawnThing.footY > companionSortY();
+  const somethingElse = onMagpie && (inFront || (target && !Story.wants("magpie")) || (!onMagpiePixels() && ((WORLD.garden && Wildlife.birdAt(gx, gy, 0, !target)) || drawnThing)));
   if (companion.mode !== "away" && onMagpie && !somethingElse) {
     if (Story && Story.tapMagpie()) return;
     companion.joy = 0.35;
@@ -939,10 +965,10 @@ function handleTap(sx, sy, pointerId) {
     return;
   }
 
-  if (Husband.at(gx, gy, minTap())) { Husband.tap(); return; }
+  if (!target && Husband.at(gx, gy, minTap())) { Husband.tap(); return; }
 
   const her = playerPixelPos(), pose = playerPose();
-  if (!player.hidden && isSolid(pose.sprite, gx - Math.round(her.x), gy - (Math.round(her.y) - TILE - pose.lift))) {
+  if (!target && !player.hidden && isSolid(pose.sprite, gx - Math.round(her.x), gy - (Math.round(her.y) - TILE - pose.lift))) {
     showEmote("player", "sparkles");
     Sound.tap(760);
     const doll = Dolls.carried();
@@ -950,7 +976,7 @@ function handleTap(sx, sy, pointerId) {
     return;
   }
 
-  if (scene.name === "room") {
+  if (scene.name === "room" && !target) {
     const doll = Dolls.at(gx, gy, minTap());
     if (doll) {
       Sound.tap(900);
@@ -961,7 +987,7 @@ function handleTap(sx, sy, pointerId) {
     }
   }
 
-  const bird = WORLD.garden && (Wildlife.birdAt(gx, gy, 0) || (!thingAt(gx, gy, true) && Wildlife.birdAt(gx, gy, minTap())));
+  const bird = WORLD.garden && !target && (Wildlife.birdAt(gx, gy, 0) || (!thingAt(gx, gy, true) && Wildlife.birdAt(gx, gy, minTap())));
   if (bird) {
     if (Story && Story.tapBird(bird)) return;
     Wildlife.greet(bird);
@@ -975,12 +1001,12 @@ function handleTap(sx, sy, pointerId) {
     }
     return;
   }
-  const fly = WORLD.garden && CRITTERS && CRITTERS.flies.find((f) => Math.hypot(f.x - gx, f.y - gy) < Math.max(8, minTap() / 2));
+  const fly = WORLD.garden && !target && CRITTERS && CRITTERS.flies.find((f) => Math.hypot(f.x - gx, f.y - gy) < Math.max(8, minTap() / 2));
   if (fly) { magpieSays("butterfly"); Husband.reached({ name: "butterfly", footX: fly.x, footY: fly.y + 9 }); return; }
 
-  if (Story && WORLD.garden && Story.tapEffect(gx, gy)) return;
+  if (Story && WORLD.garden && !target && Story.tapEffect(gx, gy)) return;
 
-  const thing = thingAt(gx, gy);
+  const thing = target || thingAt(gx, gy);
   if (thing) {
     if (player.sitting && thing.wet) {
       thing.bounce = 0.4;
@@ -1316,7 +1342,7 @@ function showCloseup(patchIndex) {
   resize();
   Closeup.open(patchIndex >= 0 ? patchIndex : currentPatch, canvas.width, canvas.height, Story ? Story.closeupOptions() : {});
   closeupSeen = true;
-  saved.set("closeupSeen", true);
+  if (!PARAMS.has("free")) saved.set("closeupSeen", true);       // (?free never writes her save)
   player.path = [];
   player.interact = null;
   tapMarker = null;
@@ -1554,7 +1580,7 @@ function drawPlayer() {
   const bob = pose.facing ? lift + Math.max(-1, Math.min(1, Dolls.laggingLift() - lift)) : null;
   Dolls.drawOnHer(ctx, Math.round(p.x), herTop, facing, true, bob);
   Quirks.drawHair(ctx, Math.round(p.x), herTop - lift, facing, true, pose);        // (a flower he tucked behind her ear, on her far side)
-  ctx.drawImage(sprite, Math.round(p.x) - (sprite.ox || 0), herTop - lift);
+  ctx.drawImage(sprite, Math.round(p.x) - (sprite.ox || 0), herTop - lift - (sprite.oy || 0));
   Dolls.drawOnHer(ctx, Math.round(p.x), herTop, facing, false, bob);
   Quirks.drawHair(ctx, Math.round(p.x), herTop - lift, facing, false, pose);
   const item = State && State.get().holding;
@@ -1562,7 +1588,7 @@ function drawPlayer() {
   else if (item && ICONS[item] && facing !== "up") {
     const icon = heldIcons[item] || (heldIcons[item] = iconFromGrid(ICONS[item]).toCanvas());
     const side = player.facing === "left" ? -5 : player.facing === "right" ? 5 : 0;
-    ctx.drawImage(icon, Math.round(p.x + 8 + side - icon.width / 2), Math.round(p.y) - TILE + 18 - lift - Math.round(icon.height / 2));
+    ctx.drawImage(icon, Math.round(p.x + 8 + side - icon.width / 2), Math.round(p.y) - TILE + 21 - lift - Math.round(icon.height / 2));
   }
 }
 
@@ -1606,7 +1632,7 @@ function drawHerOutline() {
     }
     outlineCache.set(sprite, ring);
   }
-  ctx.drawImage(ring, Math.round(p.x) - (sprite.ox || 0), Math.round(p.y) - TILE - lift);
+  ctx.drawImage(ring, Math.round(p.x) - (sprite.ox || 0), Math.round(p.y) - TILE - lift - (sprite.oy || 0));
 }
 
 const starLabels = [];
@@ -1813,16 +1839,17 @@ function coveredBySomething(x, y, view) {
 const emoteSprites = {};
 const emoteSprite = (n) => emoteSprites[n + CUE] || (emoteSprites[n + CUE] = iconFromGrid(ICONS[n], CUE > 1).toCanvas());
 const EMOTE_TIME = 1.8;      // seconds on screen
-let emotes = [];             // { who: "player" | "magpie", name, age }
+const EMOTE_TIMES = { heat: 3.2 };   // (so hot: the sweat beads and heat squiggles stay a while)
+let emotes = [];             // { who: "player" | "magpie", name, age, life }
 
 function showEmote(who, name) {
   emotes = emotes.filter((e) => e.who !== who);
-  emotes.push({ who, name, age: 0 });
+  emotes.push({ who, name, age: 0, life: EMOTE_TIMES[name] || EMOTE_TIME });
 }
 
 function updateEmotes(dt) {
   emotes.forEach((e) => (e.age += dt));
-  emotes = emotes.filter((e) => e.age < EMOTE_TIME);
+  emotes = emotes.filter((e) => e.age < e.life);
 }
 
 function drawEmotes() {
@@ -1833,8 +1860,10 @@ function drawEmotes() {
     else { const p = playerPixelPos(); head = { x: p.x + 8, y: p.y - TILE + 1 }; }
     const t = e.age;
     const lift = t < 0.12 ? 6 * (1 - t / 0.12) : t < 0.22 ? -2 * Math.sin(((t - 0.12) / 0.1) * Math.PI) : 0;
-    if (t > EMOTE_TIME - 0.15 && Math.floor(t * 20) % 2) continue;
-    ctx.drawImage(icon, Math.round(head.x - icon.width / 2), Math.round(head.y - icon.height - 1 + lift));
+    if (t > e.life - 0.15 && Math.floor(t * 20) % 2) continue;
+    const y = Math.round(head.y - icon.height - 1 + lift), room = y - camera.y;
+    const dx = room < 1 ? Math.round(icon.width / 2 + 7) : 0;
+    ctx.drawImage(icon, Math.round(head.x - icon.width / 2) + dx, room < 1 ? Math.round(camera.y + 1 + lift) : y);
   }
 }
 
@@ -1933,7 +1962,7 @@ function drawWorld(time, skyShift = 0) {
   items.push(...Husband.items());
   if (WORLD.indoors && companion.mode === "window" && !companion.flight) {
     const w = WORLD.things.find((t) => t.type === "window");
-    if (w) { const ws = thingSprite(w, 1); items.push({ bottom: w.footY + 0.6, draw: () => ctx.drawImage(ws.front, Math.round(w.footX - ws.ax), Math.round(w.footY - ws.ay)) }); }
+    if (w) { const ws = thingSprite(w, 1); items.push({ bottom: w.footY + 0.6, draw: () => { ctx.drawImage(ws.front, Math.round(w.footX - ws.ax), Math.round(w.footY - ws.ay)); drawCompanionCarry(); } }); }
   }
   if (WORLD.garden) items.push(...Wildlife.items(view), ...(Story ? Story.items() : []), ...marginWoods(view));
   else if (scene.name === "room") items.push(...Dolls.items());
@@ -1999,17 +2028,8 @@ function hasProgress() {
   return s.day > 1 || Object.keys(s.done).length > 0 || Object.keys(s.learned).length > 0;
 }
 
-function backupProgress() {
-  try {
-    for (const k of ["progress", "morning"]) {
-      const v = localStorage.getItem("starling." + k);
-      if (v) localStorage.setItem("starling." + k + ".previous", v);
-    }
-  } catch (e) { /* private mode */ }
-}
-
 function eraseProgress() {
-  backupProgress();
+  State.eraseProgress();
   State.reset();
   saved.set("closeupSeen", false);
   closeupSeen = false;
@@ -2031,13 +2051,13 @@ Title.setup({
   storyNew: () => !!(Intro && !Intro.seen()),
   onNewGame() {
     if (started) {
-      if (!PARAMS.has("free")) { backupProgress(); State.reset(); saved.set("closeupSeen", false); }
+      if (!PARAMS.has("free")) { State.eraseProgress(); State.reset(); saved.set("closeupSeen", false); }
       try { sessionStorage.setItem("starling.newGame", "1"); } catch (e) { /* private mode */ }     // (opened fresh, the story starts right away)
       location.href = location.pathname + (PARAMS.has("free") ? "?free" : "");
       return;
     }
     if (!PARAMS.has("free")) eraseProgress();
-    if (Intro && !(PARAMS.has("reset") && !PARAMS.has("intro"))) Intro.play(startGame);
+    if (Intro && !((PARAMS.has("reset") || PARAMS.has("free")) && !PARAMS.has("intro"))) Intro.play(startGame);
     else startGame();
   },
   onStory: Intro ? () => { Title.hide(); Intro.play(() => Title.reopen()); } : null,

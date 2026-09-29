@@ -1,9 +1,9 @@
 
 const QUIRK_FIT = {
   seat: 7,                      // on a bench together: each sits this far from its middle
-  lap: { x: 0, y: 14 },         // his head on her lap: the lying sprite (head to the left) from her sprite's top left
-  lift: 14,                     // how high he lifts her
-  liftGap: 10,                  // how far apart they stand for the lift (her middle to his)
+  lap: { x: 0, y: 17 },         // his head on her lap: the lying sprite (head to the left) from her sprite's top left
+  lift: 18,                     // how high he lifts her (her shoes above his glasses)
+  liftGap: 13,                  // how far apart they stand for the lift (her middle to his)
   near: 13,                     // for a pat, a flower to her ear, a leaf out of her hair (side by side, as they walk)
 };
 
@@ -136,9 +136,10 @@ function renderQuirkHim(look = husbandLook()) {
   const skin = look.skin, shirt = look.shirt;
   const side = (arm, ox = 0, blink = false) => hisQuirkFrame(look, "left", 0, { base: "bare", arm, ox, blink });
   const lift = side((b, ox) => {
-    b.rotEllipse(ox + 4.2, 16.4, 3, 1.3, 0.75, shirt);
-    b.circle(ox + 1.6, 13.8, 1.15, skin, { flat: true });
-  }, 1);
+    b.line(ox + 6, 17.8, ox + 1.4, 12.4, 2.3, shirt, { flat: false });
+    b.line(ox + 1.4, 12.4, ox - 0.6, 7.2, 2.2, shirt, { flat: false });
+    b.circle(ox - 0.8, 6.2, 1.15, skin, { flat: true });
+  }, 3);
   const reachUp = (hy) => hisQuirkFrame(look, "down", 0, { base: "wave0", wr: 3, arm: (b) => {
     b.line(11.2, 18.2, 13.9, hy + 2, 2.2, shirt, { flat: false });
     b.circle(14.5, hy, 1.15, skin, { flat: true });

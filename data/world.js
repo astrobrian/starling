@@ -17,7 +17,7 @@ window.THINGS = {
   wateringCan:   { name: "watering can",  size: [1, 1], blocks: true },
   pottedPlant:   { name: "plant",         size: [1, 1], blocks: true },
   birdFeeder:    { name: "bird feeder",   size: [1, 1], blocks: true },
-  birdBath:      { name: "bird bath",     size: [1, 1], blocks: true },
+  birdBath:      { name: "bird bath",     size: [1, 1], blocks: true, beside: true },
   birdhouse:     { name: "birdhouse",     size: [1, 1], blocks: true },
   seedSack:      { name: "seeds",         size: [1, 1], blocks: true },
   feather:       { name: "feather",       size: [1, 1], blocks: false },
@@ -58,6 +58,7 @@ window.WORLD_OBJECTS = [
   { type: "fence", x: 2, y: 11, length: 5, direction: "across" },
   { type: "jangdokdae", x: 11, y: 4 },
   { type: "persimmonTree", x: 14, y: 6 },
+  { type: "plumTree", x: 17, y: 6 },
   { type: "sotdae", x: 17, y: 8 },
   { type: "bush", x: 2, y: 4, variant: 1 },
   { type: "rock", x: 4, y: 8 },
@@ -94,6 +95,7 @@ window.WORLD_OBJECTS = [
   { type: "bigTree", x: 9, y: 21 },
   { type: "berryBush", x: 12, y: 22 },
   { type: "berryBush", x: 7, y: 22, variant: 1 },
+  { type: "bush", x: 12, y: 24, variant: 3 },          // the parrotbills' bush, by the big tree (Day 5)
   { type: "birdFeeder", x: 13, y: 17 },
   { type: "birdBath", x: 6, y: 19 },
   { type: "birdhouse", x: 5, y: 17 },
@@ -118,12 +120,12 @@ window.WORLD_OBJECTS = [
 ];
 
 window.FLOWER_PATCHES = [
-  { x: 12, y: 15, rx: 2.6, ry: 1.8, flowers: [["daisy", "snow"], ["tulip", "petalPink"], ["tulip", "butter"], ["tulip", "coral"], ["cosmos", "petalPink"]] },
+  { x: 12, y: 15, rx: 2.6, ry: 1.8, flowers: [["daisy", "snow"], ["tulip", "petalPink"], ["tulip", "butter"], ["tulip", "scarlet"], ["cosmos", "petalPink"]] },
   { x: 23, y: 5.5, rx: 3.2, ry: 1.8, flowers: [["sunflower", "sunflower"], ["cosmos", "magenta"], ["daisy", "butter"]] },
   { x: 15, y: 22.6, rx: 2.4, ry: 1.4, flowers: [["rose", "petalPink"], ["rose", "snow"], ["daisy", "petalPink"]] },
-  { x: 39, y: 17.5, rx: 2.8, ry: 1.8, flowers: [["tulip", "coral"], ["tulip", "lilac"], ["tulip", "snow"], ["daisy", "snow"]] },
+  { x: 39, y: 17.5, rx: 2.8, ry: 1.8, flowers: [["tulip", "scarlet"], ["tulip", "lilac"], ["tulip", "snow"], ["daisy", "snow"]] },
   { x: 3.8, y: 7.5, rx: 1.4, ry: 2.2, flowers: [["cosmos", "snow"], ["cosmos", "petalPink"]] },
-  { x: 6, y: 13.5, rx: 2, ry: 1.5, flowers: [["sunflower", "sunflower"], ["daisy", "snow"], ["rose", "coral"]] },
+  { x: 6, y: 13.5, rx: 2, ry: 1.5, flowers: [["sunflower", "sunflower"], ["daisy", "snow"], ["rose", "scarlet"]] },
   { x: 39, y: 6, rx: 2.2, ry: 1.4, flowers: [["daisy", "snow"], ["cosmos", "petalPink"]] },
   { x: 28, y: 24.5, rx: 2.2, ry: 1.5, flowers: [["tulip", "butter"], ["tulip", "petalPink"]] },
 ];

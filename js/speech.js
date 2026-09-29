@@ -2,6 +2,8 @@
 const Speech = (() => {
   const $ = (id) => document.getElementById(id);
   let open = false, resolveLine = null, typing = null, current = null;
+  let ending = null;            // ends the line showing now (its promise resolves with null)
+  function endLine() { const f = ending; ending = null; if (f) f(); }
 
   const VOICES = () => ({
     ...Object.fromEntries(Object.entries(BIRDS).map(([k, b]) => [k, { chirp: b.chirp || "tweet", pitch: b.chirpPitch || 2600 }])),
@@ -40,7 +42,8 @@ const Speech = (() => {
     hint.innerHTML = "";
     const pic = document.createElement("div");
     pic.className = "hint-picture";
-    pic.textContent = info ? info.picture : "✨";
+    if (info && info.icon && ICONS[info.icon]) pic.appendChild(pixelIcon(info.icon, 40));
+    else pic.textContent = info ? info.picture : "✨";
     const word = document.createElement("div");
     word.className = "hint-word";
     word.textContent = piece.toLowerCase();
@@ -65,6 +68,13 @@ const Speech = (() => {
     showHint.timer = setTimeout(() => hint.classList.add("hidden"), 2600);
   }
 
+  function pixelIcon(name, size) {
+    const c = iconFromGrid(ICONS[name]).toCanvas();
+    const k = Math.max(2, Math.round(size / c.height));
+    Object.assign(c.style, { width: `${c.width * k}px`, height: `${c.height * k}px`, imageRendering: "pixelated", display: "inline-block" });
+    return c;
+  }
+
   const met = {};
   function metWord(word) {
     const b = Words.base(word);
@@ -77,6 +87,7 @@ const Speech = (() => {
   function say(id, extra = {}) {
     const line = { ...LINES[id], ...extra };
     if (!line.who) return Promise.resolve(null);
+    endLine();                    // (the line showing now ends first: one line at a time)
     current = line;
     const box = $("speech");
     const text = $("speech-text");
@@ -106,13 +117,25 @@ const Speech = (() => {
     if (!line.chirps && !narrator) for (const s of spans) if (s.classList.contains("dim") && s.dataset.word && !met[s.dataset.word]) met[s.dataset.word] = { text: fill(line.text), who: line.who };
 
     return new Promise((resolve) => {
-      let i = 0, chirped = 0;
+      let i = 0, chirped = 0, timer = null, typed = false, over = false;
+      const done = (value) => {
+        if (over) return;
+        over = true;
+        clearInterval(timer);
+        if (typing === timer) typing = null;
+        if (ending === end) ending = null;
+        resolve(value);
+      };
+      const end = () => done(null);
+      ending = end;
       const finish = () => {
-        clearInterval(typing);
-        typing = null;
+        if (typed) return;
+        typed = true;
+        clearInterval(timer);
+        if (typing === timer) typing = null;
         spans.forEach((s) => s.classList.remove("hidden-word"));
         under.classList.add("shown");
-        const choices = line.replies && line.replies.includes("?") && (State.get().wonders || 0) >= 3 && UI_TEXT.whatsThat
+        const choices = line.replies && line.replies.includes("?") && line.whatsThat && (State.get().wonders || 0) >= 3 && UI_TEXT.whatsThat
           ? [...line.replies, UI_TEXT.whatsThat] : line.replies;
         if (choices) {
           for (const r of choices) {
@@ -121,9 +144,10 @@ const Speech = (() => {
             pieces(fill(r)).forEach((p) => b.appendChild(wordSpan(p, "her", false)));
             b.addEventListener("pointerdown", (e) => {
               e.stopPropagation();
-              close();
+              if (over) return;
               if (r === UI_TEXT.whatsThat && typeof showEmote === "function") { showEmote("player", "sparkles"); showEmote("magpie", "heart"); }
-              resolve(r === UI_TEXT.whatsThat ? "?" : r);
+              done(r === UI_TEXT.whatsThat ? "?" : r);
+              close();
             });
             replies.appendChild(b);
           }
@@ -139,13 +163,13 @@ const Speech = (() => {
       };
       while (i < spans.length && !isWord(spans[i])) spans[i++].classList.remove("hidden-word");
       step();
-      typing = setInterval(step, 150);
+      timer = typing = setInterval(step, 150);
       resolveLine = () => {
-        if (typing) { finish(); if (line.early) line.early(); return false; }       // first tap: show the whole line
+        if (!typed) { finish(); if (line.early) line.early(); return false; }       // first tap: show the whole line
         if (line.replies) return false;               // she needs to choose a reply
         if (line.ready && !line.ready()) { if (line.early) line.early(); return false; }   // (the picture's moment first)
+        done(null);
         close();
-        resolve(null);
         return true;
       };
     });
@@ -156,6 +180,7 @@ const Speech = (() => {
     resolveLine = null;
     $("speech").classList.add("hidden");
     $("hint").classList.add("hidden");
+    endLine();                    // (a line still waiting ends: no reply)
   }
 
   function tap() {

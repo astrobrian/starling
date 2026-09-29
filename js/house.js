@@ -2,7 +2,7 @@
 const HOUSE_STYLES = ["cottage", "a", "b", "c"];
 
 function houseVariant() {
-  const asked = new URLSearchParams(location.search).get("house");
+  const asked = typeof PARAMS !== "undefined" ? PARAMS.get("house") : null;      // (?house=a, js/dev.js)
   const style = HOUSE_STYLES.includes(asked) ? asked : window.HOUSE_STYLE || "cottage";
   return Math.max(0, HOUSE_STYLES.indexOf(style));
 }

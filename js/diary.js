@@ -187,24 +187,27 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
 
   function d2(g, t, opts = {}) {
     back(g, "day", () => sun(g, t));
-    const tx = 80, ty = 72;
-    blob(g, tx + 3, ty - 0.5, 12, 2.4, RAMPS.grass[2]);          // the tree's shadow
-    const tree = drawProp(g, "persimmonTree", 1, tx, ty);
+    const ux = 38, uy = 73;                                                // the plum tree
+    blob(g, ux + 3, uy - 0.5, 12, 2.4, RAMPS.grass[2]);
+    drawProp(g, "plumTree", 0, ux, uy);
+    const tx = 92, ty = 72;                                                // the persimmon tree
+    blob(g, tx + 3, ty - 0.5, 12, 2.4, RAMPS.grass[2]);
+    const tree = drawProp(g, "persimmonTree", 0, tx, ty);
     const px = tx - tree.ax + 39, py = ty - tree.ay + 32;
     Daylight.drawLight(g, px, py, 7 + Math.round(Math.sin(t * 2) * 1), "starlight", 1);
     Daylight.drawLight(g, px, py, 4, "starlight", 0.6);
     if (Math.sin(t * 2.6) > 0.6) twinkle(g, px + 5, py - 5);
-    drawBird(g, MAGPIE, "stand", tx + 1, ty - 24, false, (t % 4.3) < 0.14);
-    shadow(g, 44, 77, 5);
+    drawBird(g, MAGPIE, "stand", tx + 3, ty - 23, false, (t % 4.3) < 0.14);
+    shadow(g, 50, 78, 5);
     const pecking = (t % 1.6) < 0.5 && Math.floor((t % 1.6) / 0.25) % 2 === 0;
     const st = birdSprite(BIRDS.bulbul, "stand");
-    drawIcon(g, "persimmon", 44 - st.footX + st.canvas.width - 1, 73);
-    drawBird(g, BIRDS.bulbul, pecking ? "peck" : "stand", 44, 77);
-    drawHer(g, 8, 83, "up", opts.doll);
+    drawIcon(g, "plum", 50 - st.footX + st.canvas.width, 75);
+    drawBird(g, BIRDS.bulbul, pecking ? "peck" : "stand", 50, 78);
+    drawHer(g, 4, 83, "right", opts.doll, (t % 3.9) < 0.14);
   }
 
-  const COLORS4 = [["tulip", "coral"], ["daisy", "butter"], ["rose", "petalPink"], ["tulip", "snow"],
-    ["rose", "coral"], ["tulip", "butter"], ["daisy", "petalPink"], ["daisy", "snow"]];
+  const COLORS4 = [["tulip", "scarlet"], ["daisy", "butter"], ["rose", "petalPink"], ["tulip", "snow"],
+    ["rose", "scarlet"], ["tulip", "butter"], ["daisy", "petalPink"], ["daisy", "snow"]];
   function d3(g, t) {
     back(g, "day", () => sun(g, t));
     [[12, 52], [28, 50], [84, 50], [100, 53], [20, 64], [92, 64]].forEach(([x, y], i) => flower(g, ...COLORS4[i % 8], x, y, i, t));
@@ -238,7 +241,7 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     shadow(g, x, y - 1, 9, 1.8);
     shadow(g, 16, 79, 6);
     drawProp(g, "wateringCan", 0, 16, 80);                        // (she filled the bath with it)
-    [["tulip", "coral", 88, 80], ["daisy", "snow", 101, 77], ["rose", "petalPink", 106, 86], ["daisy", "butter", 30, 88]]
+    [["tulip", "scarlet", 88, 80], ["daisy", "snow", 101, 77], ["rose", "petalPink", 106, 86], ["daisy", "butter", 30, 88]]
       .forEach(([sp, col, fx, fy], i) => flower(g, sp, col, fx, fy, i + 2, t));
     g.drawImage(bath.canvas, bx, by);
     const flutter = Math.floor(t * 5) % 2;
@@ -260,16 +263,14 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     }
   }
 
-  const BRANCH_Y = (x) => 45 + ((100 - x) * 4) / 62;           // the top of the branch
+  const ROOST = { x: 50, y: 53, step: 8 };                     // the middle of their twig
   const dusk = (() => {
     const b = new PixelBuffer(W, H);
     trunk(b, 104, 0, H - 3, 12);
-    b.line(100, 47, 38, 51, 3.6, "bark", { flat: false });
-    b.line(40, 51, 12, 48, 2.4, "bark", { flat: false });
-    b.line(28, 50, 22, 42, 1.4, "bark", { flat: false });
+    b.line(99, 42, 88, 46, 2.4, "bark", { flat: false });
     clumpCanopy(b, 100, 6, 22, 13, "leaf", 81, { clump: 4.4 });
-    clumpCanopy(b, 11, 45, 9, 6, "leaf", 82, { clump: 3, tips: 3 });
-    clumpCanopy(b, 22, 39, 6, 4.5, "leaf", 83, { clump: 2.6, tips: 2 });
+    clumpCanopy(b, 86, 44, 5, 4, "leaf", 83, { clump: 2.6, tips: 2 });
+    clumpCanopy(b, ROOST.x, ROOST.y + 7, 31, 12, "leaf", 84, { clump: 4, tips: 5 });     // their bush
     const c = outline(b).toCanvas();
     const g = c.getContext("2d");
     for (const [type, v, x] of [["hedge", 1, 12], ["bush", 2, 34], ["hedge", 3, 70]]) {
@@ -278,9 +279,13 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     }
     return sunsetLit(c);
   })();
-  const sleepy = (() => {
-    const s = renderBird(BIRDS.parrotbill, "sleep", true), c = flipCanvas(s.canvas);
-    return { canvas: sunsetLit(c), footX: s.canvas.width - s.footX, footY: s.footY };
+  const tucked = (() => {
+    const L = roostLeaves(BIRDS.parrotbill, 5, ROOST.step), s = birdSprite(BIRDS.parrotbill, "roost", true);
+    const c = make(L.back.width, L.back.height), g = c.getContext("2d");
+    g.drawImage(L.back, 0, 0);
+    for (let i = 0; i < 5; i++) g.drawImage(s.canvas, Math.round(L.ax + (i - 2) * ROOST.step - s.footX), L.ay - s.footY);
+    g.drawImage(L.front, 0, 0);
+    return { canvas: sunsetLit(c), ax: L.ax, ay: L.ay };
   })();
   function d5(g, t) {
     back(g, "dusk", () => {
@@ -290,13 +295,11 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     });
     if (Math.sin(t * 1.3) > -0.4) twinkle(g, 58, 7);
     g.drawImage(dusk, -1, -1);
-    for (const x of [50, 59, 68, 77, 86]) {                          // (each one's head over the tail before it)
-      g.drawImage(sleepy.canvas, Math.round(x - sleepy.footX), Math.round(BRANCH_Y(x) + 1 - sleepy.footY));
-    }
+    g.drawImage(tucked.canvas, ROOST.x - tucked.ax, ROOST.y - tucked.ay);
     for (let i = 0; i < 2; i++) {
       const k = (t * 0.28 + i * 0.5) % 1;
       if (k > 0.8) continue;
-      drawIcon(g, "zzz", 60 + i * 18 + Math.round(Math.sin(k * 5 + i) * 2), 30 - Math.round(k * 14));
+      drawIcon(g, "zzz", 40 + i * 20 + Math.round(Math.sin(k * 5 + i) * 2), 34 - Math.round(k * 14));
     }
   }
 
@@ -337,9 +340,7 @@ const Diary = !document.getElementById("diary") ? null : (() => {
   };
   function keepDoll(day) {
     const s = State.get();
-    if (s.dollDay !== day || !s.doll) return;
-    s.diaryDolls = { ...(s.diaryDolls || {}), [day]: s.doll };
-    State.save();
+    if (s.dollDay === day && s.doll) State.keepDiaryDoll(day, s.doll);
   }
 
   function sizeCanvas(c, w, h, points) {
@@ -454,16 +455,21 @@ const Diary = !document.getElementById("diary") ? null : (() => {
     fitText();
   }
 
+  const doneAll = (day, ids) => [].concat(ids || []).every((id) => State.isDone(`d${day}_${id}`));
   function pageLines(day, data) {
     const out = [];
+    let waiting = false, shown = false;
     for (const line of data.text || []) {
       if (typeof line === "string") { out.push(line); continue; }
       if (!line || typeof line.text !== "string") continue;
-      const after = [].concat(line.after || []);
-      if (after.every((id) => State.isDone(`d${day}_${id}`))) out.push(line.text);
+      if (doneAll(day, line.after)) { out.push(line.text); if (line.after) shown = true; }
+      else waiting = true;
     }
+    if (waiting && !shown) out.push(...[].concat(data.fallback || []));
     return out;
   }
+
+  const pictureOf = (day, data) => (data && data.picture && doneAll(day, data.pictureAfter) ? data.picture : "empty");
 
   function words(el, text, day, korean, n = 0) {
     const today = new Set(day ? Words.learnedOn(day) : []);
@@ -502,7 +508,7 @@ const Diary = !document.getElementById("diary") ? null : (() => {
     last = now;
     const day = days[index], data = entry(day);
     pictures = pictures || makeDiaryPictures(W, H);
-    const draw = (data && pictures[data.picture]) || pictures.empty;
+    const draw = pictures[pictureOf(day, data)] || pictures.empty;
     ctx.clearRect(0, 0, W, H);
     draw(ctx, clock, { doll: data ? dollOn(day) : null });
     requestAnimationFrame((t) => loop(t, id));
@@ -595,7 +601,7 @@ const Diary = !document.getElementById("diary") ? null : (() => {
       open, mode, day: open ? days[index] || null : null, pages: days.slice(), index,
       fontSize: parseFloat($("diary-text").style.fontSize) || null,
       fits: $("diary-text").scrollHeight <= $("diary-text").clientHeight + 1,
-      picture: { ...at(canvas), scale: canvas.getBoundingClientRect().width / W },
+      picture: { ...at(canvas), scale: canvas.getBoundingClientRect().width / W, name: open ? pictureOf(days[index], entry(days[index])) : null },
       prev: at($("diary-prev")), next: at($("diary-next")), done: at($("diary-done")),
       words: [...root.querySelectorAll(".word")].map((s) => ({ word: s.textContent, dim: s.classList.contains("dim"), today: s.classList.contains("today"), ...at(s) })),
     };

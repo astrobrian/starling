@@ -109,9 +109,11 @@ const Sound = (() => {
     const again = options.restart || options.offset != null;
     if (name === music.name && !again && music.state !== "off" && music.state !== "missing") return;
     const changing = name !== music.name && music.source;
+    const previous = music.name;
     music.name = name;
     clearTimeout(music.timer);
     fadeOutCurrent(again ? 0.3 : 2.5);
+    if (previous && previous !== name) setTimeout(() => { if (music.name !== previous) delete buffers[previous]; }, 3000);
     music.state = "loading";
     const token = ++music.token;
     loadTrack(name).then((buffer) => {

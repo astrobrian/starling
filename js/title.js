@@ -191,12 +191,13 @@ function makeTitleScene(W, H, opts = {}) {
   const fxMax = opts.fireflyMaxX || W * 0.62 + 20;        // (opts.fireflyMaxX keeps them to the left)
   for (let i = 0; i < 7; i++) flies.push({ x: 20 + hash2(i, 1, 331) * (fxMax - 20), y: ground - 4 - hash2(i, 2, 332) * 16, phase: hash2(i, 3, 333) * 6.28, speed: 0.5 + hash2(i, 4, 334) * 0.6 });
 
-  function bigStar(ctx, x, y, time, phase) {
-    const tw = 0.75 + 0.25 * Math.sin(time * 1.3 + phase);
-    Daylight.drawLight(ctx, x, y, 7, "starBright", tw);
-    ctx.fillStyle = PALETTE.starlight;
-    ctx.fillRect(x - 2, y, 5, 1);
-    ctx.fillRect(x, y - 2, 1, 5);
+  function bigStar(ctx, x, y, time, phase, bright = false) {
+    const tw = 0.75 + 0.25 * Math.sin(time * 1.3 + phase), arm = bright ? 3 : 2;
+    Daylight.drawLight(ctx, x, y, bright ? 11 : 6, "starBright", bright ? tw + 0.25 : tw * 0.85);
+    ctx.fillStyle = bright ? PALETTE.starBright : PALETTE.starlight;
+    ctx.fillRect(x - arm, y, arm * 2 + 1, 1);
+    ctx.fillRect(x, y - arm, 1, arm * 2 + 1);
+    if (bright) { ctx.fillRect(x - 1, y - 1, 3, 3); }
     ctx.fillStyle = PALETTE.cream;
     ctx.fillRect(x, y, 1, 1);
   }
@@ -224,9 +225,9 @@ function makeTitleScene(W, H, opts = {}) {
       ctx.fillStyle = Math.sin(time * s.rate + s.phase) > 0.75 ? PALETTE.starBright : PALETTE.starFaint;
       ctx.fillRect(s.x, s.y, 1, 1);
     }
-    const vx = Math.round(W * 0.6), ax = Math.round(W * 0.76);
-    bigStar(ctx, vx, Math.round(riverY(vx) - H * 0.2), time, 0);
-    bigStar(ctx, ax, Math.round(riverY(ax) + H * 0.2), time, 2);
+    const vx = Math.round(W * 0.84), ax = Math.round(W * 0.56);
+    bigStar(ctx, vx, Math.round(riverY(vx) + H * 0.075), time, 0, true);
+    bigStar(ctx, ax, Math.round(riverY(ax) - H * 0.1), time, 2);
     moon(ctx, Math.round(opts.moonX ? W * opts.moonX : W - Math.min(44, W * 0.1)), Math.round(H * 0.17));
     if (shooting) {
       const k = (time - shooting.at) / 0.9;

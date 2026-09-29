@@ -2,7 +2,7 @@
 function husbandLook() {
   const H = window.HUSBAND || {};
   const looks = H.looks || {};
-  const asked = typeof location !== "undefined" ? new URLSearchParams(location.search).get("husband") : null;
+  const asked = typeof PARAMS !== "undefined" ? PARAMS.get("husband") : null;     // (?husband=b, js/dev.js)
   return looks[asked] || looks[H.style] || Object.values(looks)[0];
 }
 
@@ -747,7 +747,7 @@ const Husband = (() => {
     const p = w.target.pos();
     if (p) faceToward(p);
     if (w.answer && now() - w.answer.at > 1.2 && !UI.bubbleShowing()) { thanked(); return; }
-    if (!w.counted && !off && now() - w.since > 1.5) { w.counted = true; const saved = State.get(); saved.wonders = (saved.wonders || 0) + 1; State.save(); }
+    if (!w.counted && !off && now() - w.since > 1.5) { w.counted = true; State.addWonder(); }
     const moving = isMoving();
     if (w.herMoving && !moving) {
       const h = herFeet(), near = Math.hypot(h.x - (H.x + 8), h.y - (H.y + 14)) < 1.5 * TILE;

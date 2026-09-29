@@ -129,7 +129,7 @@ const Sky = (() => {
   function bridgeLayout(real, cons, mid) {
     const vega = real.find((r) => r.id === "vega"), altair = real.find((r) => r.id === "altair");
     if (!vega || !altair) return null;
-    const x0 = vega.x + 12 * CUE, x1 = altair.x - 12 * CUE;
+    const x0 = Math.min(vega.x, altair.x) + 12 * CUE, x1 = Math.max(vega.x, altair.x) - 12 * CUE;
     const footY = mid + 16 * CUE, topY = mid + 7 * CUE;
     const arcY = (t) => footY - (footY - topY) * Math.sin(Math.PI * t);
     const slots = [];
@@ -228,7 +228,7 @@ const Sky = (() => {
     const margin = 16 * CUE, items = cons.filter((c) => c.stars.length);
     const fixed = (c) => c.id === "swan";
     const vega = real.find((r) => r.id === "vega"), altair = real.find((r) => r.id === "altair");
-    const arch = vega && altair ? { l: vega.x, r: altair.x, t: mid + 3 * CUE, b: mid + 20 * CUE } : null;
+    const arch = vega && altair ? { l: Math.min(vega.x, altair.x), r: Math.max(vega.x, altair.x), t: mid + 3 * CUE, b: mid + 20 * CUE } : null;
     const boxOf = (c) => { let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity; for (const s of c.stars) { l = Math.min(l, s.x); r = Math.max(r, s.x); t = Math.min(t, s.y); b = Math.max(b, s.y); } return { l, r, t, b }; };
     const shift = (c, dx) => { const bx = boxOf(c); dx = Math.max(EDGE * CUE - bx.l, Math.min(skyW - EDGE * CUE - bx.r, dx)); for (const s of c.stars) s.x += dx; return dx; };
     const apart = (a, b, m) => a.l - m >= b.r || b.l - m >= a.r || a.t - m >= b.b || b.t - m >= a.b;
@@ -475,8 +475,14 @@ const Sky = (() => {
   const started = (c) => c.stars.some((s) => lit(s.word)) || c.stars.some((s) => promise.includes(s.word));
 
   const BIRD_STARS = {
-    magpie: [["....##..", "...##o#.", "########", ".#####..", "..###..."], ["..#.##..", "..###o#.", "########", ".#####..", "..###..."]],
-    crow: [[".....##.", "#..##o##", "########", ".#####..", "..###..."], ["..#..##.", "#.###o##", "########", ".#####..", "..###..."]],
+    magpie: [
+      [".....#.....", "##..###..##", ".####o####.", "...#####...", ".....#.....", ".....#....."],
+      ["#....#....#", ".#..###..#.", "..###o###..", "...#####...", ".....#.....", ".....#....."],
+    ],
+    crow: [
+      [".....###.....", "##...###...##", ".#####o#####.", "..#########..", "....#####....", ".....###.....", "....#####...."],
+      ["#....###....#", ".##..###..##.", "..####o####..", "..#########..", "....#####....", ".....###.....", "....#####...."],
+    ],
   };
   const birdStarCache = {};
   function birdStar(species, face, frame) {
@@ -568,10 +574,17 @@ const Sky = (() => {
     const ms = moonSpot(lay, moonInfo);
     if (ms && ms.x - px > -24 && ms.x - px < w + 24) Moon.draw(ctx, ms.x - px, ms.y, ms.r, moonInfo);
     for (const r of lay.real) {
-      const x = r.x - px;
-      if (x < -16 || x > w + 16) continue;
-      Daylight.drawLight(ctx, x, r.y, 12 * CUE, "starBright", 0.8 + 0.2 * Math.sin(time * 1.3 + r.x));
-      drawStar(ctx, x, r.y, STAR_BIG, r.id === "vega" ? PALETTE.starBright : PALETTE.starlight);
+      const x = r.x - px, vega = r.id === "vega";
+      if (x < -20 || x > w + 20) continue;
+      Daylight.drawLight(ctx, x, r.y, (vega ? 17 : 11) * CUE, "starBright", (vega ? 1 : 0.7) + 0.2 * Math.sin(time * 1.3 + r.x));
+      drawStar(ctx, x, r.y, STAR_BIG, vega ? PALETTE.starBright : PALETTE.starlight);
+      if (vega) {
+        const on = 0.6 + 0.4 * Math.sin(time * 2.1 + r.x) > 0.35;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (let k = 8; k <= (on ? 11 : 10); k++) {
+          ctx.fillStyle = k >= 10 ? PALETTE.starBand : PALETTE.starBright;
+          ctx.fillRect(x + dx * k * CUE, r.y + dy * k * CUE, CUE, CUE);
+        }
+      }
     }
     const inView = lay.cons.filter((c) => started(c) && c.cx - px > -120 * CUE && c.cx - px < w + 120 * CUE);
     ctx.fillStyle = PALETTE.starLine;
@@ -816,7 +829,7 @@ const Sky = (() => {
     const name = whoName((State.get().learnedWith || {})[word]);
     return name ? UI_TEXT.learnedWith.replace("{day}", d).replace("{who}", name) : UI_TEXT.learnedOn.replace("{day}", d);
   }
-  const pictureOf = (word) => { const i = Words.info(word); return i && i.picture ? i.picture + " " : ""; };
+  const pictureOf = (word) => { const i = Words.info(word); return i && i.picture && !i.icon ? i.picture + " " : ""; };
 
   function whisper(lay) {
     if (!review || press || clock < whisperAt || labels.length || tourMoving() || cardOpen()) return;
@@ -1006,6 +1019,7 @@ const Sky = (() => {
     bridgeBox: (w, h) => { const a = layout(w, h).bridge; return a && { l: a.x0, r: a.x1, cx: a.cx, slots: a.slots.length, twinkles: a.twinkles.length }; },
     moonSpot: (w, h, day) => (typeof Moon === "undefined" ? null : moonSpot(layout(w, h), Moon.forDay(day))),
     pairSprite: () => { forgetTogether(); return together(); },
+    birdStarSprite: (species, frame = 0) => birdStar(species, 1, frame),          // (for the gallery)
     porchSprite: () => { forgetTogether(); return onThePorch(); },
     width: (w, h) => layout(w, h).skyW,
     layoutOf: (w, h) => layout(w, h),

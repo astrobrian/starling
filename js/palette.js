@@ -30,14 +30,14 @@ const BASE_COLORS = {
   sheen: "#4FA6A2",   // blue-green gloss on magpie tails and wings
   blush: "#F7A1B0",
 
-  coral: "#F28A86",       // "red" flowers, ladybugs, mushroom caps
+  coral: "#F28A86",       // ladybugs, mushroom caps
   lilac: "#B7A2E0",       // "purple" flowers
   butter: "#FBE48E",      // "yellow" flowers
   peach: "#F7B98B",       // "orange" flowers
   magenta: "#E283B5",     // deep pink cosmos
   sunflower: "#F6C445",
   seed: "#8C5B3F",        // sunflower centers
-  scarlet: "#E4525C",     // a true red (빨강), for zinnias, balsams and moss roses: redder and deeper than coral
+  scarlet: "#E4525C",     // "red" flowers: a true red (빨강), redder and deeper than coral, clearly apart from pink (tulips, roses, zinnias, balsams, moss roses)
 
   stone: "#C9C3D3",       // rocks, stepping stones, bird bath
   wood: "#C99A70",        // fence, bench, posts

@@ -19,7 +19,8 @@ window.WORDS = {
   feather:   { day: 2, picture: "🪶", korean: null },
   find:      { day: 2, picture: "🔍", korean: "찾아 줘", forms: ["found"] },
   want:      { day: 2, picture: "💭", korean: "원해" },
-  persimmon: { day: 2, picture: "🟠", korean: "감" },
+  plum:      { day: 2, picture: "🟣", icon: "plum", korean: "자두" },
+  persimmon: { day: 2, picture: "🟠", icon: "persimmon", korean: "감" },
   save:      { day: 2, picture: "🔖", korean: "남겨 줘", forms: ["saved", "saving"] },
 
   flower:    { day: 3, picture: "🌸", korean: null },
@@ -37,7 +38,7 @@ window.WORDS = {
   water:     { day: 4, picture: "💧", korean: null },
   drink:     { day: 4, picture: "🥤", korean: null, forms: ["drank", "drunk"] },
   bath:      { day: 4, picture: "🛁", korean: "목욕", forms: ["bathe"] },
-  roof:      { day: 4, picture: "🛖", korean: null },
+  roof:      { day: 4, picture: "🛖", korean: "지붕" },
   rice:      { day: 4, picture: "🍚", korean: null },
   bread:     { day: 4, picture: "🍞", korean: null },
   cup:       { day: 4, picture: "☕", korean: null },

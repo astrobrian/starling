@@ -12,7 +12,7 @@ window.CONSTELLATIONS = [
       { loop: true, points: skyCircle(0.5, 0.6, 0.45, 0.38, 10) },
       { points: [[0.24, 0.08], [0.5, 0], [0.76, 0.08]] },
     ],
-    words: ["hungry", "berry", "persimmon", "feeder", "crackers", "candy", "eat", "seed", "rice", "bread", "drink", "sweet"],
+    words: ["hungry", "berry", "persimmon", "plum", "feeder", "crackers", "candy", "eat", "seed", "rice", "bread", "drink", "sweet"],
   },
   {
     id: "house", name: "The House", korean: "집자리", at: [0.13, 0.2], size: [52, 46],
@@ -173,8 +173,8 @@ window.CONSTELLATIONS = [
 ];
 
 window.SKY_STARS = [
-  { id: "vega", name: "the Weaver", korean: "직녀별", at: [0.455, 0.46] },
-  { id: "altair", name: "the Cowherd", korean: "견우별", at: [0.545, 0.54] },
+  { id: "vega", name: "the Weaver", korean: "직녀별", at: [0.545, 0.46] },
+  { id: "altair", name: "the Cowherd", korean: "견우별", at: [0.455, 0.54] },
 ];
 window.MILKY_WAY = { x: 0.5, width: 0.07 };
 

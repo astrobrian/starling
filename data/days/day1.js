@@ -1,4 +1,5 @@
 
+{ // (this day's own names stay inside: see day1.js)
 window.DAYS = window.DAYS || {};
 
 DAYS[1] = {
@@ -19,6 +20,18 @@ DAYS[1] = {
         { moment: "fallenStar", patch: 0 },
         { say: "d1_star", learn: ["star"] },
         { scene: [{ wait: 0.4 }, { hold: null }, { emote: "sparkles", on: "her" }, { sound: "twinkle" }, { wait: 0.4 }] },
+      ],
+    },
+
+    {
+      id: "hello",
+      steps: [
+        { scene: [{ magpie: "follow" }, { wait: 0.5 }, { emote: "sparkles" }] },
+        { act: "flap", on: "magpie", seconds: 2.4, wait: false },
+        { say: "d1_bird", replies: {
+          "?": [{ act: "flap", on: "magpie", seconds: 2, wait: false }, "d1_bird_me"],
+        } },
+        { learn: ["bird"] },
       ],
     },
 
@@ -57,8 +70,9 @@ DAYS[1] = {
         "d1_ouch",
         { magpie: "follow" },
         { give: "berry", to: { bird: "sparrow" }, from: "berryBush", emote: "sparkles", thought: "berry", hint: "d1_sparrow" },
-        { scene: [{ bird: "sparrow", pose: "peck" }, { sound: { chirp: "tweet", pitch: 3000 } }, { wait: 0.5 }, { bird: "sparrow", celebrate: true }, { wait: 1.0 }] },
+        { moment: "birdEats", bird: "sparrow", item: "berry", pecks: 3, cheer: true, lines: { during: "d1_eat" } },
         "d1_sparrow_yum",
+        { learn: ["eat"] },
         { friend: "sparrow" },
       ],
     },
@@ -80,7 +94,8 @@ DAYS[1] = {
   night: {
     lookUp: "d1_look_up",
     learn: ["look", "up"],
-    tomorrow: "d1_tomorrow",
+    lines: ["new_stars", { look: "@bridge", say: "d1_bird_star" }, "d1_tomorrow"],
     card: "theEnd",
   },
 };
+}

@@ -49,26 +49,25 @@ function makeIntroPictures(W, H) {
   const cx = Math.round(W / 2);
   const downSky = river(false, (y) => cx + Math.sin(y / H * Math.PI * 1.1) * W * 0.05, W * 0.1, Math.round(W * H / 55), 512, W * 0.09);
 
-  function starFolk(color, flower, sad, look = 0) {
-    const b = new PixelBuffer(21, 21);
+  function starFolk(color, flower, surprised, look = 0, big = 0) {
+    const b = new PixelBuffer(21 + 2 * big, 21 + 2 * big);
     const pts = [];
     for (let i = 0; i < 10; i++) {
-      const r = i % 2 ? 5 : 10, a = -Math.PI / 2 + (i * Math.PI) / 5;
-      pts.push([10.5 + Math.cos(a) * r, 11.2 + Math.sin(a) * r]);
+      const r = i % 2 ? 5 + big * 0.5 : 10 + big, a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push([10.5 + big + Math.cos(a) * r, 11.2 + big + Math.sin(a) * r]);
     }
     b.polygon(pts, color, { flat: true });                      // flat, like light
-    b.circle(10.5, 11.6, 5.6, color, { flat: true });
-    for (const [x, y] of [[10, 2], [10, 3], [9, 4], [10, 4], [9, 5]]) b.set(x, y, "cream");     // a shine on its top point
+    b.circle(10.5 + big, 11.6 + big, 5.6 + big * 0.5, color, { flat: true });
+    for (const [x, y] of [[10, 2], [10, 3], [9, 4], [10, 4], [9, 5]]) b.set(x + big, y + big - (big ? 1 : 0), "cream");     // a shine on its top point
     const out = outline(b);
-    const set = (x, y, c) => out.set(x + 1, y + 1, c);
+    const set = (x, y, c) => out.set(x + 1 + big, y + 1 + big, c);
     for (const ex0 of [7, 12]) {
-      const ex = sad ? ex0 : ex0 + look;
-      if (sad) { set(ex, 12, "plum"); set(ex + 1, 12, "plum"); set(ex + (ex < 10 ? 0 : 1), 11, "plum"); }
-      else for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2]]) set(ex + dx, 10 + dy, dx === 0 && dy === 0 ? "cream" : "plum");
+      const ex = surprised ? ex0 : ex0 + look;
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2]]) set(ex + dx, 10 + dy - (surprised ? 1 : 0), dx === 0 && dy === 0 ? "cream" : "plum");
+      if (surprised) { set(ex, 12, "plum"); set(ex + 1, 12, "plum"); }
     }
-    if (sad) { set(8, 13, RAMPS.pond[1]); set(8, 14, RAMPS.pond[1]); }       // a tear
     for (const bx of [5, 14]) { set(bx, 13, "blush"); set(bx + 1, 13, "blush"); }
-    if (sad) { set(9, 15, "plum"); set(10, 14, "plum"); set(11, 15, "plum"); }
+    if (surprised) { set(10, 14, "plum"); set(9, 15, "plum"); set(11, 15, "plum"); set(10, 16, "plum"); }
     else { set(9, 14, "plum"); set(10, 15, "plum"); set(11, 14, "plum"); }
     if (flower) {
       for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) set(4 + dx, 6 + dy, "petalPink");
@@ -76,10 +75,17 @@ function makeIntroPictures(W, H) {
     }
     return out.toCanvas();
   }
-  const weaver = { happy: starFolk("starBright", true, false, 1), sad: starFolk("starBright", true, true) };        // she looks right, at him
-  const cowherd = { happy: starFolk("starlight", false, false, -1), sad: starFolk("starlight", false, true) };      // he looks left, at her
-  const bankY = Math.round(H * 0.3), weaverX = Math.round(cx - W * 0.2), cowherdX = Math.round(cx + W * 0.2);
-  const drawFolk = (g, who, x, y, mood = "happy") => g.drawImage(who[mood], Math.round(x) - 11, Math.round(y) - 12);
+  const weaver = { happy: starFolk("starBright", true, false, -1, 1), surprised: starFolk("starBright", true, true, 0, 1) };       // she looks left, at him (a size bigger: the brighter star)
+  const cowherd = { happy: starFolk("starlight", false, false, 1), surprised: starFolk("starlight", false, true) };      // he looks right, at her
+  const bankY = Math.round(H * 0.3), weaverX = Math.round(cx + W * 0.2), cowherdX = Math.round(cx - W * 0.2);
+  const weaverY = bankY - 3;
+  const exclaim = iconFromGrid(ICONS.exclaim).toCanvas();
+  const drawFolk = (g, who, x, y, mood = "happy") => {
+    Daylight.drawLight(g, Math.round(x), Math.round(y), who === weaver ? 17 : 11, "starBright", who === weaver ? 0.9 : 0.45);
+    const c = who[mood], top = Math.round(y) - Math.floor(c.height / 2) - 1;
+    g.drawImage(c, Math.round(x) - Math.floor(c.width / 2), top);
+    if (mood === "surprised") g.drawImage(exclaim, Math.round(x) - Math.floor(exclaim.width / 2), top - exclaim.height);   // a "!" over each
+  };
 
   const wings = (id) => ["fly1", "fly2"].map((pose) => {
     const s = renderBird(BIRDS[id] || BIRDS.magpie, pose);
@@ -203,7 +209,7 @@ function makeIntroPictures(W, H) {
 
     two(g, t) {
       bands(g); drawFaint(g, t); downSky(g, t);
-      drawFolk(g, weaver, weaverX, bankY + Math.round(Math.sin(t * 2) * 1));
+      drawFolk(g, weaver, weaverX, weaverY + Math.round(Math.sin(t * 2) * 1));
       drawFolk(g, cowherd, cowherdX, bankY + Math.round(Math.sin(t * 2 + 1.5) * 1));
       const k = (t % 2.2) / 1.4;
       if (t > 0.6 && k < 1) drawHeart(g, cx, bankY - 2 - Math.floor(k * 16));
@@ -219,9 +225,9 @@ function makeIntroPictures(W, H) {
         drawBird(g, s.kind, x, y, s.from < 0 ? "right" : "left", t, false, s.x, k >= 1);
       }
       const k = ease((t - 1.4) / 1.2);
-      const wx = weaverX + (cx - 8 - weaverX) * k, hx = cowherdX + (cx + 8 - cowherdX) * k;
+      const wx = weaverX + (cx + 8 - weaverX) * k, hx = cowherdX + (cx - 8 - cowherdX) * k;
       const lift = (x) => (k > 0 ? arcY(x) - 11 : bankY);
-      drawFolk(g, weaver, wx, Math.min(bankY, lift(wx)));
+      drawFolk(g, weaver, wx, Math.min(weaverY, lift(wx)));
       drawFolk(g, cowherd, hx, Math.min(bankY, lift(hx)));
       if (t > 2.7) { const h = ((t - 2.7) % 2) / 1.2; if (h < 1) drawHeart(g, cx, arcTop - 20 - Math.floor(h * 10)); }
     },
@@ -235,8 +241,8 @@ function makeIntroPictures(W, H) {
         if (x > -20 && x < W + 20 && y > -20 && y < H + 20) drawBird(g, s.kind, x, y, Math.cos(ang) < 0 ? "left" : "right", t, true, s.x);
       });
       const k = ease((t - 0.5) / 1.1);
-      drawFolk(g, weaver, cx - 8 + (weaverX - cx + 8) * k, arcTop - 11 + (bankY - arcTop + 11) * k, k > 0.3 ? "sad" : "happy");
-      drawFolk(g, cowherd, cx + 8 + (cowherdX - cx - 8) * k, arcTop - 11 + (bankY - arcTop + 11) * k, k > 0.3 ? "sad" : "happy");
+      drawFolk(g, weaver, cx + 8 + (weaverX - cx - 8) * k, arcTop - 11 + (weaverY - arcTop + 11) * k, k > 0.3 ? "surprised" : "happy");
+      drawFolk(g, cowherd, cx - 8 + (cowherdX - cx + 8) * k, arcTop - 11 + (bankY - arcTop + 11) * k, k > 0.3 ? "surprised" : "happy");
       for (let i = 0; i < 4; i++) {
         const s = t - 0.9 - i * 0.35;
         if (s < 0 || s > 1.6) continue;

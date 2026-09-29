@@ -6,11 +6,11 @@ window.FLOWERS = {
   },
   tulip: {
     name: "tulip", shape: "tulip", size: "small", petals: 3, center: "beeYellow",
-    colors: ["coral", "petalPink", "butter", "lilac", "snow"],
+    colors: ["scarlet", "petalPink", "butter", "lilac", "snow"],
   },
   rose: {
     name: "rose", shape: "rose", size: "small", petals: 5, center: "beeYellow",
-    colors: ["coral", "petalPink", "snow", "butter"],
+    colors: ["scarlet", "petalPink", "snow", "butter"],
   },
   sunflower: {
     name: "sunflower", shape: "sunflower", size: "tall", petals: 12, center: "seed",

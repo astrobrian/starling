@@ -37,7 +37,7 @@ window.HUSBAND = {
     dome: [
       "You are my star.",
       "I love the stars!",
-      "Look in the telescope!",
+      "Look through the telescope!",
       "I love you!",
       "Strawberry says hi!",
       "Thank you for coming!",
@@ -46,7 +46,7 @@ window.HUSBAND = {
     found: ["Look! {a thing}!", "Oh, look! {a thing}!", "There! {a thing}!"],
     gone: ["It flew away! Bye-bye, {thing}!"],
     thanks: ["{a thing}! Thank you!", "Oh, {a thing}! Thank you!"],
-    bye: ["See you soon!", "Back to work. Bye!"],
+    bye: ["See you soon!", "See you tonight!"],
     goodnight: ["Good night!"],
     morning: ["Good morning!"],
     goodDay: ["Have a good day!"],

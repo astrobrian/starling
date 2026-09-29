@@ -83,7 +83,7 @@ window.UI_TEXT = {
   zoom_far: "Far",
   zoom_wide: "Wide",
   callHusband: "Call husband",   // the side button: the magpie fetches him
-  byeForNow: "Bye for now",      // the same button while he's with her
+  byeForNow: "See you later",      // the same button while he's with her
   visitHusband: "Visit husband", // the second side button: off to the observatory
   goHome: "Go home",             // the same button at the observatory
   bee: "Bzz!",          // bees only ever say this

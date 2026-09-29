@@ -92,8 +92,24 @@ function bushOf(color, seed, w, h, extra) {
   return finish(b, Math.floor(w / 2), h - 1);
 }
 
+const GREEN_PERSIMMON = { body: "#D2E27A", shade: "#9DBA55", shine: "#F6F8D2", calyx: "#4F7A3A", calyxLit: "#6F9A48", rim: "#4A6E36" };
+function greenPersimmon(b, x, y) {
+  const G = GREEN_PERSIMMON, X = Math.round(x), Y = Math.round(y);
+  b.ellipse(x, y + 0.3, 2.9, 2.7, G.rim, { flat: true });
+  b.ellipse(x, y + 0.3, 2.1, 1.9, G.body, { flat: true });
+  const body = paletteColor(G.body);
+  for (let py = Math.floor(y - 2); py <= y + 3; py++) for (let px = Math.floor(x - 3); px <= x + 3; px++) {
+    if (b.get(px, py) === body && (px + 0.5 - x) * 0.7 + (py + 0.5 - y - 0.3) > 1.0) b.set(px, py, G.shade);
+  }
+  b.set(X - 1, Math.round(y - 0.4), G.shine);
+  for (let dx = -2; dx <= 2; dx++) b.set(X + dx, Y - 2, Math.abs(dx) === 1 ? G.calyxLit : G.calyx);
+  b.set(X - 3, Y - 1, G.calyx); b.set(X + 3, Y - 1, G.calyx);
+  b.set(X, Y - 3, G.calyx);
+}
+
 function persimmonFruits(v = 0) {
-  return [[12, 28], [33, 19], [38, 31], [19, 15], [27, 33]].slice(0, v === 1 ? 4 : 5);
+  const all = [[12, 28], [33, 19], [38, 31], [19, 15], [27, 33]];
+  return v === 2 ? [all[0], all[1], all[3]] : all.slice(0, v === 1 ? 4 : 5);
 }
 
 const PROP_RENDERERS = {
@@ -137,13 +153,8 @@ const PROP_RENDERERS = {
     b.line(24, 44, 13, 32, 2.4, "bark", { flat: false });
     b.line(26, 44, 38, 30, 2.4, "bark", { flat: false });
     clumpCanopy(b, 25, 24, 22, 18, "leafGold", 50, { clump: 5.2 });
-    for (const [x, y] of persimmonFruits(v)) {
-      b.circle(x, y, 2.5, "persimmon");
-      b.set(Math.round(x - 1), Math.round(y - 1), RAMPS.persimmon[0]);
-      b.set(Math.round(x), Math.round(y - 2.5), "leaf");
-    }
+    for (const [x, y] of persimmonFruits(v)) greenPersimmon(b, x, y);
     return finish(b, 25, 61);
-  
   },
 
   house() {
@@ -656,22 +667,22 @@ Object.assign(PROP_RENDERERS, {
   },
 });
 
-const CROW_SHEEN = "#5F5B94";
+const CROW_SHEEN = "#4A4679";
 function crowFeatherSprite(frame) {
   const angle = [-0.3, -0.5, -0.15, 0.2, 0.5][frame] ?? -0.3;
-  const W = 18, H = 12, cx = 9, cy = 6;
+  const W = 20, H = 13, cx = 10, cy = 6.5;
   const b = new PixelBuffer(W, H);
   const c = Math.cos(angle), s = Math.sin(angle);
-  b.rotEllipse(cx, cy, 7, 1.8, angle, "ink");
-  b.set(Math.round(cx + c * 3 - s * 1.6), Math.round(cy + s * 3 + c * 1.6), null);
-  b.line(cx - c * 7.5, cy - s * 7.5 + 0.3, cx + c * 6.5, cy + s * 6.5 - 0.3, 1, RAMPS.duskLavender[2], { onlyFilled: true });
-  for (const k of [-3.5, -1, 1.5]) b.set(Math.round(cx + c * k + s * 0.9), Math.round(cy + s * k - c * 0.9), CROW_SHEEN);
+  b.rotEllipse(cx, cy, 8, 2, angle, "ink");
+  b.set(Math.round(cx + c * 3.5 - s * 1.8), Math.round(cy + s * 3.5 + c * 1.8), null);
+  b.line(cx - c * 8.5, cy - s * 8.5 + 0.3, cx + c * 7.5, cy + s * 7.5 - 0.3, 1, RAMPS.ink[0], { onlyFilled: true });
+  for (const k of [-3, 1]) b.set(Math.round(cx + c * k + s * 1.1), Math.round(cy + s * k - c * 1.1), CROW_SHEEN);
   const out = outline(b);
   if (frame === 0) {
-    const qx = Math.round(cx - c * 8.2) + 1, qy = Math.round(cy - s * 8.2) + 1;
-    out.set(qx, qy, RAMPS.duskLavender[1]); out.set(qx - 1, qy - Math.sign(s), RAMPS.duskLavender[1]);
+    const qx = Math.round(cx - c * 9.2) + 1, qy = Math.round(cy - s * 9.2) + 1;
+    out.set(qx, qy, RAMPS.duskLavender[2]); out.set(qx - 1, qy - Math.sign(s), RAMPS.duskLavender[2]);
   }
-  return { canvas: out.toCanvas(), ax: cx + 1, ay: frame === 0 ? cy + 3 : cy + 1 };
+  return { canvas: out.toCanvas(), ax: Math.round(cx) + 1, ay: frame === 0 ? Math.round(cy) + 3 : Math.round(cy) + 1 };
 }
 
 const crowNightCache = {};
@@ -679,7 +690,17 @@ function crowFeatherNight(frame = 0) {
   const f = ((frame % 4) + 4) % 4;
   if (crowNightCache[f]) return crowNightCache[f];
   const day = crowFeatherSprite(1 + f);
-  const lit = moonlit(nightBird(day.canvas), null, PALETTE.starBright, { maxY: day.canvas.height });
+  const c = nightBird(day.canvas);
+  const darker = { [PALETTE.starBand]: PALETTE.starFaint, [PALETTE.starFaint]: PALETTE.night3, [PALETTE.night3]: PALETTE.night2, [PALETTE.night2]: PALETTE.night1 };
+  const g = c.getContext("2d"), img = g.getImageData(0, 0, c.width, c.height), d = img.data;
+  const map = Object.fromEntries(Object.entries(darker).map(([k, v]) => [k.toLowerCase(), hexToRgb(v)]));
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    const to = map[rgbToHex([d[i], d[i + 1], d[i + 2]]).toLowerCase()];
+    if (to) { d[i] = to[0]; d[i + 1] = to[1]; d[i + 2] = to[2]; }
+  }
+  g.putImageData(img, 0, 0);
+  const lit = moonlit(c, null, PALETTE.starBand, { maxY: day.canvas.height });
   return (crowNightCache[f] = { canvas: lit, ax: day.ax, ay: day.ay });
 }
 
@@ -759,7 +780,7 @@ function trayPicture(taken = 0) {
       else if (edge && b.get(x, y)) b.set(x, y, edge);          // outlined only against what's behind it
     }
   }
-  const steam = taken & 4 ? [] : [[13, 2, RAMPS.cream[2]], [12, 1, RAMPS.cream[2]], [13, 0, RAMPS.cream[1]]];
+  const steam = [];                                   // (cold barley tea, 보리차, as it's drunk in summer: no steam)
   return { buf: b, ax: Math.floor(W / 2), ay: H - 1, steam };
 }
 
@@ -796,14 +817,61 @@ function beakTip(bird, pose = "stand") {
 }
 
 function drawBeakFlower(ctx, footX, footY, faceLeft = false, pose = "stand", bird = BIRDS.magpie) {
-  const s = renderBird(bird, pose), tip = beakTip(bird, pose), f = prop("beakFlower");
+  drawInBeak(ctx, "flower", footX, footY, faceLeft, pose, bird);
+}
+
+function drawInBeak(ctx, what, footX, footY, faceLeft = false, pose = "stand", bird = BIRDS.magpie) {
+  const s = renderBird(bird, pose), tip = beakTip(bird, pose);
+  const f = what === "flower" ? prop("beakFlower") : what === "persimmon" ? prop("beakPersimmon")
+    : what === "plum" ? prop("beakPlum") : what === "crowFeather" ? prop("beakCrowFeather") : null;
+  let sprite = f;
+  if (!sprite) {
+    if (!ICONS[what]) return;
+    const c = iconFromGrid(ICONS[what]).toCanvas();
+    sprite = { canvas: c, ax: Math.floor(c.width / 2), ay: 1 };
+  }
   const x = faceLeft ? footX + s.footX - tip.x : footX - s.footX + tip.x, y = footY - s.footY + tip.y;
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(y) - f.ay);
+  ctx.translate(Math.round(x), Math.round(y) - sprite.ay);
   if (faceLeft) ctx.scale(-1, 1);
-  ctx.drawImage(f.canvas, -f.ax, 0);
+  ctx.drawImage(sprite.canvas, -sprite.ax, 0);
   ctx.restore();
 }
+
+Object.assign(PROP_RENDERERS, {
+  beakPersimmon() {
+    const icon = {
+      colors: { P: "persimmon", H: "#F9C07E", L: "leafGold", S: "bark" },
+      grid: [
+        "..S...",
+        ".LSL..",
+        ".PPPP.",
+        "PHPPPP",
+        "PPPPPP",
+        "PPPPPP",
+        ".PPPP.",
+      ],
+    };
+    return { canvas: iconFromGrid(icon).toCanvas(), ax: 3, ay: 1 };
+  },
+  beakPlum() {
+    const icon = {
+      colors: { P: "#A4476F", p: "#853A5E", c: "#6E2E4E", H: "#E9A9C5", S: "bark" },
+      grid: [
+        "..S.",
+        ".PPP",
+        "PHPc",
+        "PPpc",
+        ".pp.",
+      ],
+    };
+    return { canvas: iconFromGrid(icon).toCanvas(), ax: 3, ay: 1 };
+  },
+  beakCrowFeather() {
+    const s = crowFeatherSprite(4);                     // (tipped down and forward: its quill end is up at the left)
+    return { canvas: s.canvas, ax: 3, ay: 3 };
+  },
+});
 
 const SOIL = "#A7805F", SOIL_WET = "#7E5E48";
 
@@ -917,7 +985,14 @@ function drawSkipSplash(ctx, x, y, frame = 0, sink = false) {
   ctx.drawImage(s.canvas, Math.round(x - s.ax), Math.round(y - s.ay));
 }
 
-const VISITOR_FRUIT = { apple: "#D6DE78", appleBlush: "#EE9580", plum: "#C65A78", plumBloom: "#F0B3C4" };
+const VISITOR_FRUIT = { apple: "#D6DE78", appleBlush: "#EE9580", plum: "#A4476F", plumBloom: "#E9A9C5", plumCrease: "#6E2E4E" };
+function plumFruit(b, x, y) {
+  b.ellipse(x, y, 1.8, 2.2, VISITOR_FRUIT.plum, { shadeAs: [x, y, 1.8, 2.2] });
+  b.set(Math.round(x - 1), Math.round(y - 1), VISITOR_FRUIT.plumBloom);
+  b.set(Math.round(x + 0.6), Math.round(y - 0.4), VISITOR_FRUIT.plumCrease);
+  b.set(Math.round(x + 0.6), Math.round(y + 0.6), VISITOR_FRUIT.plumCrease);
+  b.set(Math.round(x), Math.round(y - 2.6), "bark");
+}
 function visitorFruit(b, x, y, r, color, mark, markAt, blush = null) {
   const box = [x, y, r, r];
   b.circle(x, y, r, color, { shadeAs: box });
@@ -945,13 +1020,12 @@ Object.assign(PROP_RENDERERS, {
     b.line(25, 44, 15, 34, 2.1, "bark", { flat: false });
     b.line(27, 43, 38, 35, 2.1, "bark", { flat: false });
     clumpCanopy(b, 26, 25, 20, 18, "hedge", 71, { clump: 4.6 });
-    for (const [x, y] of [[13, 30], [33, 19], [39, 31], [21, 17], [28, 33], [15, 21], [36, 25]]) {
-      visitorFruit(b, x, y, 2, VISITOR_FRUIT.plum, VISITOR_FRUIT.plumBloom, [-1, -1]);
-    }
+    for (const [x, y] of [[13, 30], [33, 19], [39, 31], [21, 17], [28, 33], [15, 21], [36, 25]]) plumFruit(b, x, y);
     const fallen = [[10, 59.2], [40, 59.6], [33, 60.6]].slice(0, v ? 4 - Math.min(3, v) : 0);
     for (const [x, y] of fallen) {
-      b.ellipse(x, y, 1.9, 1.4, VISITOR_FRUIT.plum);
+      b.ellipse(x, y, 2.1, 1.5, VISITOR_FRUIT.plum);
       b.set(Math.round(x - 1), Math.round(y - 1), VISITOR_FRUIT.plumBloom);
+      b.set(Math.round(x + 1), Math.round(y), VISITOR_FRUIT.plumCrease);
     }
     return finish(b, 26, 59);
   },

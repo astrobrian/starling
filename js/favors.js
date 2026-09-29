@@ -2,10 +2,10 @@
 const Favors = (() => {
   const KINDS = {};
 
-  const ORDER = ["moment", "scene", "when", "repeat", "meet", "near", "find", "fetch", "give", "tap", "still", "outside",
-    "choose", "say", "bird", "act", "magpie", "hold", "friend", "phase", "world", "restore", "guide", "thought", "emote",
+  const ORDER = ["moment", "scene", "when", "repeat", "meet", "still", "near", "find", "fetch", "give", "tap", "outside",
+    "greet", "choose", "say", "bird", "act", "magpie", "hold", "friend", "phase", "world", "restore", "guide", "thought", "emote",
     "sound", "wait", "learn", "hint"];
-  const ENGAGING = new Set(["moment", "scene", "find", "fetch", "give", "tap", "still", "choose", "say", "act"]);
+  const ENGAGING = new Set(["moment", "scene", "find", "fetch", "give", "tap", "still", "greet", "choose", "say", "act"]);
   const OWN_LEARN = new Set(["say", "choose", "learn", "outside"]);
 
   const kindOf = (step) => ORDER.find((k) => k in step) || null;
@@ -78,7 +78,9 @@ const Favors = (() => {
   KINDS.moment = (s, K, ctx) => {
     const m = typeof Moments !== "undefined" && Moments[s.moment];
     if (!m) { warn(`no moment "${s.moment}" in js/moments.js`); return null; }
-    return m(s, K, ctx);
+    const playing = m(s, K, ctx);
+    if (s.wait === false) { Promise.resolve(playing).catch((e) => setTimeout(() => { throw e; })); return null; }
+    return playing;
   };
 
   KINDS.bird = async (s, K) => {
@@ -86,10 +88,14 @@ const Favors = (() => {
     const b = had || (s.species ? K.storyBird({ ...s, id: s.bird }) : null);
     if (!b) { warn(`no bird "${s.bird}" here`); return null; }
     if (had) {
-      if (s.look !== undefined) b.look = s.look ? K.lookWith(BIRDS[b.species], s.look) : BIRDS[b.species];
+      if (s.look !== undefined) {
+        b.look = s.look ? K.lookWith(BIRDS[b.species], s.look) : BIRDS[b.species];
+        if (s.portrait && typeof setPortraitLook === "function") setPortraitLook(b.species, s.look || null);
+      }
       if (s.thought !== undefined) b.thought = s.thought;
       if (s.pose) b.pose = s.pose;
       if (s.does) b.does = s.does;
+      if (s.range !== undefined) b.range = s.range * TILE;
       if (s.favor !== undefined) b.favor = s.favor;
       if (s.faceLeft !== undefined) b.faceLeft = s.faceLeft;
     }
@@ -106,11 +112,16 @@ const Favors = (() => {
     if (s.chirp) Wildlife.greet(b);
     if (s.emote) Wildlife.showEmote(b, s.emote);
     if (s.celebrate) Wildlife.celebrate(b);
-    if (s.act) await birdAct(b, s.act, s.seconds);
+    if (s.act) {
+      const acting = birdAct(b, s.act, s.seconds);
+      if (!goesOn(s)) await acting;
+    }
     if (s.leave) Wildlife.leave(b, s.leave === "forGood");
     if (s.remove) Wildlife.remove(b.id);
     return b;
   };
+
+  const goesOn = (s) => s.wait === false || s.seconds === 0 || (s.seconds === undefined && ["sleep", "pant"].includes(s.act));
 
   async function birdAct(b, name, seconds) {
     if (typeof Wildlife.act === "function") return Wildlife.act(b, name, seconds);
@@ -122,7 +133,17 @@ const Favors = (() => {
   }
 
   KINDS.act = async (s, K) => {
-    if (s.bird) { const b = K.bird(s.bird); return b ? birdAct(b, s.act, s.seconds) : null; }
+    if (s.on === "magpie") {
+      const acting = typeof magpieAct === "function" ? magpieAct(s.act, s.seconds) : K.wait(0.6);
+      if (goesOn(s)) return null;
+      return acting;
+    }
+    if (s.bird) {
+      const b = K.bird(s.bird);
+      if (!b) return null;
+      const acting = birdAct(b, s.act, s.seconds);
+      return goesOn(s) ? null : acting;
+    }
     if (typeof Player !== "undefined" && Player && typeof Player.act === "function") return Player.act(s.act);
     K.emote("her", s.act === "sing" ? "note" : "sparkles");
     return K.wait(0.6);
@@ -173,22 +194,32 @@ const Favors = (() => {
   };
 
   KINDS.tap = async (s, K) => {
-    const ref = s.tap;
+    const refs = Array.isArray(s.tap) ? s.tap : [s.tap];
     if (s.hint !== undefined) K.G.hint = s.hint;
-    if (s.guide) K.G.guide = K.guideTo(s.guide === true ? ref : s.guide, s.guide === true ? {} : s.guide);
-    let got = null;
-    if (ref === "magpie") await new Promise((ok) => { K.G.onMagpie = () => { K.G.onMagpie = null; ok(); return true; }; });
-    else if (ref === "roof") {
-      got = await new Promise((ok) => {
-        const stop = K.listen("roof", (t) => { stop(); K.G.onRoof = null; ok(t); });
-        K.G.onRoof = () => { stop(); K.G.onRoof = null; ok("roof"); magpieSays(THINGS.roof.name); return true; };
-      });
-    } else if (ref && ref.bird) {
-      const b = K.bird(ref.bird);
-      if (b) got = await new Promise((ok) => { b.onTap = () => { b.onTap = null; ok(b); }; });
-    } else {
-      got = await new Promise((ok) => { const stop = K.listen(typeOf(ref), (t) => { if (K.fits(ref, t)) { stop(); ok(t); } }); });
-    }
+    if (s.guide) K.G.guide = K.guideTo(s.guide === true ? refs[0] : s.guide, s.guide === true ? {} : s.guide);
+    const undo = [];
+    const got = await new Promise((ok) => {
+      let over = false;
+      const done = (what) => { if (!over) { over = true; ok(what); } };
+      for (const ref of refs) {
+        if (ref === "magpie") {
+          K.G.onMagpie = () => { done("magpie"); return true; };
+          undo.push(() => { K.G.onMagpie = null; });
+        } else if (ref === "roof") {
+          const stop = K.listen("roof", (t) => done(t));
+          K.G.onRoof = () => { done("roof"); magpieSays(THINGS.roof.name); return true; };
+          undo.push(stop, () => { K.G.onRoof = null; });
+        } else if (ref && ref.bird) {
+          const bird = K.bird(ref.bird);
+          if (!bird) { warn(`no bird "${ref.bird}" to tap`); continue; }
+          bird.onTap = () => { Wildlife.greet(bird); done(bird); };
+          undo.push(() => { bird.onTap = null; });
+        } else {
+          undo.push(K.listen(typeOf(ref), (t) => { if (K.fits(ref, t)) done(t); }));
+        }
+      }
+    });
+    undo.forEach((f) => f());
     if (s.hint !== undefined) K.G.hint = null;
     if (s.guide) K.G.guide = null;
     return got;
@@ -204,6 +235,43 @@ const Favors = (() => {
   KINDS.outside = (s, K) => {
     const o = s.outside && typeof s.outside === "object" ? s.outside : {};
     return K.outside({ ...o, learn: s.learn || o.learn });
+  };
+
+  KINDS.greet = async (s, K) => {
+    const kinds = Object.keys(s.greet || {});
+    const left = new Set(kinds);
+    const flock = (species) => Wildlife.all().filter((b) => b.story && !b.gone && !b.hiddenIn && b.species === species);
+    if (s.hint !== undefined) K.G.hint = s.hint;
+    K.G.guide = () => {
+      if (scene.name !== "garden") return null;
+      const out = [];
+      for (const species of left) {
+        const b = flock(species).find((x) => !x.flight);
+        if (b) { const h = Wildlife.headTop(b); out.push({ x: h.x, y: h.y - 1 }); }
+      }
+      return out.length ? out : null;
+    };
+    let talking = false;
+    await new Promise((ok) => {
+      const arm = (b) => {
+        b.onTap = async () => {
+          if (talking) return;
+          if (!left.has(b.species)) { K.greetBird(b); return; }
+          left.delete(b.species);
+          talking = true;
+          Wildlife.greet(b);
+          for (const id of [].concat(s.greet[b.species])) await K.say(id);
+          talking = false;
+          K.greetBird(b);
+          if (!left.size) ok();
+        };
+      };
+      for (const species of kinds) flock(species).forEach(arm);
+      if (!kinds.length) ok();
+    });
+    for (const species of kinds) flock(species).forEach((b) => { b.onTap = null; b.greets = true; });
+    K.G.guide = null;
+    if (s.hint !== undefined) K.G.hint = null;
   };
 
   KINDS.fetch = async (s, K, ctx) => {
@@ -229,11 +297,11 @@ const Favors = (() => {
     (ctx.taken = ctx.taken || []).push({ t, place });
   }
 
-  KINDS.find = async (s, K) => {
+  KINDS.find = async (s, K, ctx) => {
     const item = s.find, type = s.thing || item, place = s.place || "garden";
     const w = K.worldOf(place);
     const spares = s.spares === false ? [] : w.things.filter((t) => t.type === type && !t.lost);
-    spares.forEach((t) => removeThing(t, w));
+    spares.forEach((t) => take(t, place, K, ctx));
     let lost = w.things.find((t) => t.lost && t.type === type);
     if (!lost) {
       const at = s.at || [0, 0];
@@ -248,6 +316,7 @@ const Favors = (() => {
     K.G.guide = null;
     if (s.hint !== undefined) K.G.hint = null;
     spares.forEach((t) => restoreThing(t, w));
+    ctx.taken = (ctx.taken || []).filter((x) => !spares.includes(x.t));
   };
 
   KINDS.give = async (s, K) => {
@@ -332,32 +401,116 @@ const Favors = (() => {
     ctx.round = 0;
   };
 
-  function check(days = window.DAYS || {}) {
+  const ALSO = {
+    bird: ["thought", "act", "wait", "emote"], act: ["bird", "wait"], meet: ["hint"],
+    near: ["magpie", "hint", "guide"], still: ["near", "hint"], tap: ["hint", "guide"],
+    greet: ["hint"], fetch: ["hint", "guide", "emote"], find: ["hint"],
+    give: ["thought", "hint", "guide", "emote"],
+  };
+  const SPECIAL = new Set(["her", "door", "magpie", "roof"]);                 // places and targets that aren't things
+  const THING_KEYS = new Set(["thing", "tap", "sortAfter", "tree", "bush", "feeder", "in", "into", "from", "near", "guide", "to", "or", "at"]);
+  const ICON_KEYS = new Set(["thought", "emote", "item", "icon", "airIcon"]);
+  const IN_BEAK = new Set(["flower", "persimmon", "crowFeather"]);            // (js/props.js drawInBeak draws these itself)
+
+  function deep(node, fn, key = null, parent = null) {
+    if (Array.isArray(node)) { for (const v of node) deep(v, fn, key, parent); return; }
+    if (node && typeof node === "object") { for (const [k, v] of Object.entries(node)) { fn(k, v, node); deep(v, fn, k, node); } }
+  }
+
+  function check(days = window.DAYS || {}, { quiet = false } = {}) {
     const problems = [];
-    const lineIds = new Set(Object.keys(window.LINES || {}));
+    const say = (p) => problems.push(p);
+    const lines = window.LINES || {}, icons = window.ICONS || {}, words = window.WORDS || {}, birds = window.BIRDS || {};
+    const base = (w) => (typeof Words !== "undefined" ? Words.base(w) : String(w).toLowerCase());
+    const hasLine = (id) => !!lines[id];
+    const types = new Set([...Object.keys(window.THINGS || {}), ...Object.keys(window.ROOM_THINGS || {}), ...Object.keys(window.OBSERVATORY_THINGS || {}), "flower"]);
+    if (typeof SCENES !== "undefined") for (const sc of Object.values(SCENES)) for (const t of (sc.world && sc.world.things) || []) types.add(t.type);
+    const constellations = new Set(["@bridge", "@moon", ...(window.CONSTELLATIONS || []).map((c) => c.id)]);
+    const numbers = Object.keys(days).map(Number).sort((a, b) => a - b);
+
     const look = (steps, where) => {
       for (const raw of steps === undefined || steps === null ? [] : asSteps(steps)) {
-        if (typeof raw === "string") { if (!lineIds.has(raw)) problems.push(`${where}: no line "${raw}"`); continue; }
+        if (typeof raw === "string") { if (!hasLine(raw)) say(`${where}: no line "${raw}"`); continue; }
         if (!raw || typeof raw !== "object") continue;
         const kind = kindOf(raw);
-        if (!kind) { problems.push(`${where}: a step I don't know: ${JSON.stringify(raw)}`); continue; }
-        for (const key of ["say", "choose", "lead", "hint"]) if (typeof raw[key] === "string" && raw[key] !== "sunset" && !lineIds.has(raw[key])) problems.push(`${where}: no line "${raw[key]}"`);
-        if (kind === "moment" && typeof Moments !== "undefined" && !Moments[raw.moment]) problems.push(`${where}: no moment "${raw.moment}"`);
-        if (raw.lines) for (const id of Object.values(raw.lines)) if (!lineIds.has(id)) problems.push(`${where}: no line "${id}"`);
+        if (!kind) { say(`${where}: a step I don't know: ${JSON.stringify(raw)}`); continue; }
+        if (kind !== "moment") {
+          const more = Object.keys(raw).filter((k) => k !== kind && k !== "learn" && ORDER.includes(k) && !(ALSO[kind] || []).includes(k));
+          if (more.length) say(`${where}: a step with two kinds (${kind} and ${more.join(", ")}): only ${kind} would play: ${JSON.stringify(raw)}`);
+        }
+        for (const key of ["say", "choose", "lead", "hint"]) if (typeof raw[key] === "string" && raw[key] !== "sunset" && !hasLine(raw[key])) say(`${where}: no line "${raw[key]}"`);
+        if (kind === "moment" && typeof Moments !== "undefined" && !Moments[raw.moment]) say(`${where}: no moment "${raw.moment}"`);
+        if (raw.lines) for (const id of Object.values(raw.lines)) if (!hasLine(id)) say(`${where}: no line "${id}"`);
+        if (raw.greet) for (const id of Object.values(raw.greet).flat()) if (!hasLine(id)) say(`${where}: no line "${id}"`);
+        const id = raw.say !== undefined ? raw.say : raw.choose;
+        if (raw.replies && typeof id === "string" && hasLine(id)) {
+          const offered = lines[id].replies || [];
+          for (const r of Object.keys(raw.replies)) if (r !== "*" && !offered.includes(r)) say(`${where}: a branch for the reply "${r}", which "${id}" doesn't offer (${JSON.stringify(offered)})`);
+        }
         for (const key of ["scene", "steps", "then", "else"]) if (raw[key]) look(raw[key], where);
         if (raw.replies) for (const b of Object.values(raw.replies)) look(b, where);
       }
     };
-    for (const [n, d] of Object.entries(days)) {
-      look(Array.isArray(d.morning) ? d.morning : d.morning && d.morning.steps, `Day ${n} morning`);
-      look(d.out, `Day ${n} going out`);
-      for (const f of d.favors || []) look(f.steps, `Day ${n} ${f.id}`);
-      if (d.night) {
-        for (const key of ["lookUp", "tomorrow"]) if (d.night[key] && !lineIds.has(d.night[key])) problems.push(`Day ${n} night: no line "${d.night[key]}"`);
-        if (d.night.hook) look(typeof d.night.hook === "string" ? { moment: d.night.hook } : d.night.hook, `Day ${n} night hook`);
+
+    const lasting = new Set(["magpie"]);
+    for (const n of numbers) {
+      const d = days[n];
+      const where = `Day ${n}`;
+      const morning = Array.isArray(d.morning) ? d.morning : d.morning && d.morning.steps;
+      look(morning, `${where} morning`);
+      look(d.out, `${where} going out`);
+      for (const f of d.favors || []) look(f.steps, `${where} ${f.id}`);
+      const night = d.night || {};
+      for (const key of ["lookUp", "tomorrow"]) if (night[key] && !hasLine(night[key])) say(`${where} night: no line "${night[key]}"`);
+      for (const l of [].concat(night.lines || [])) {
+        if (typeof l === "string") { if (!hasLine(l)) say(`${where} night sky: no line "${l}"`); }
+        else if (l && typeof l === "object") {
+          if (l.say && !hasLine(l.say)) say(`${where} night sky: no line "${l.say}"`);
+          if (l.look && !constellations.has(l.look)) say(`${where} night sky: no constellation "${l.look}" (data/constellations.js)`);
+        }
+      }
+      if (night.hook) look(typeof night.hook === "string" ? { moment: night.hook } : night.hook, `${where} night hook`);
+
+      const defined = new Set(lasting), wanted = [], taught = new Set();
+      const learn = (list) => { for (const w of [].concat(list || [])) { const b = base(w); if (!words[b]) say(`${where}: lights up "${w}", which isn't in data/words.js`); else taught.add(b); } };
+      learn(night.learn);
+      deep(d, (k, v, parent) => {
+        if (k === "learn") learn(v);
+        if (typeof v === "string") {
+          if (k === "species" || k === "friend") { if (!birds[v]) say(`${where}: no bird "${v}" in data/birds.js`); }
+          if (THING_KEYS.has(k) && !SPECIAL.has(v) && !types.has(v)) say(`${where}: no thing "${v}" (${k}) in data/world.js or data/room.js`);
+          if (ICON_KEYS.has(k) && !icons[v]) say(`${where}: no icon "${v}" (${k}) in data/icons.js`);
+          if (k === "carry" && !IN_BEAK.has(v) && !icons[v]) say(`${where}: nothing to carry called "${v}"`);
+          if ((k === "bird" && !parent.species) || k === "meet" || (k === "on" && !SPECIAL.has(v))) wanted.push(v);
+          if (k === "id" && parent.species) defined.add(v);
+          if (k === "bird" && parent.species) defined.add(v);
+        }
+        if ((k === "birds" || k === "tapWalks") && Array.isArray(v)) for (const b of v) if (typeof b === "string" && b !== "magpie") wanted.push(b);
+        if (k === "flock") for (const f of [].concat(v)) if (f && f.id && (f.count || 1) > 1) for (let i = 0; i < f.count; i++) defined.add(`${f.id}${i}`);
+        if (k === "greet" && v && typeof v === "object" && !Array.isArray(v)) for (const sp of Object.keys(v)) if (!birds[sp]) say(`${where}: greets "${sp}", no bird in data/birds.js`);
+      });
+      for (const b of new Set(wanted)) if (!defined.has(b)) say(`${where}: no bird "${b}" there (put it there in a favor's birds, or with { bird, species })`);
+      for (const f of d.favors || []) for (const e of [].concat((f.world && f.world.after) || [])) if (e && !e.today) for (const b of e.birds || []) if (b && b.id) lasting.add(b.id);
+
+      for (const [w, info] of Object.entries(words)) if (info.day === n && !taught.has(w)) say(`${where}: "${w}" is a word of Day ${n} (data/words.js), but no step of the day lights it up`);
+    }
+
+    for (const [n, page] of Object.entries(window.DIARY || {})) {
+      const d = days[n];
+      if (!d || !page) continue;
+      const ids = new Set((d.favors || []).map((f) => f.id));
+      const named = [...[].concat(page.pictureAfter || []), ...(page.text || []).flatMap((l) => (l && typeof l === "object" ? [].concat(l.after || []) : []))];
+      for (const id of named) if (!ids.has(id)) say(`Diary page ${n}: no favor "${id}" on Day ${n} (data/days/day${n}.js)`);
+    }
+
+    numbers.forEach((n, i) => { if (n !== i + 1) say(`Day ${i + 1} is missing (the days go ${numbers.join(", ")})`); });
+    if (typeof document !== "undefined") {
+      for (const el of document.querySelectorAll('script[src*="data/days/day"]')) {
+        const m = /day(\d+)\.js/.exec(el.getAttribute("src"));
+        if (m && !days[Number(m[1])]) say(`data/days/day${m[1]}.js didn't load (a mistake in it? see the console)`);
       }
     }
-    for (const p of problems) warn(p);
+    if (!quiet) for (const p of problems) warn(p);
     return problems;
   }
 

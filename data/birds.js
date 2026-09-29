@@ -64,7 +64,7 @@ window.BIRDS = {
   wagtail: {
     name: "Wagtail", korean: "알락할미새", shape: "songbird",
     headR: 4.6, bodyRx: 4.4, bodyRy: 3.6, beakLen: 2.6, beakH: 1.6, legLen: 2.6,
-    body: "stone", cap: "ink", head: "snow", cheek: "snow", bib: "ink",
+    body: "ink", cap: "ink", head: "snow", cheek: "snow", breastBand: "ink",
     chest: "ink", belly: "snow", wing: "ink", wingBar: "snow", wingTip: "ink",
     tail: { length: 9, color: "ink" }, beak: "ink", legs: "ink",
     chirp: "tweet", chirpPitch: 3300,
@@ -103,9 +103,9 @@ window.BIRDS = {
   },
   crow: {
     name: "Crow", korean: "큰부리까마귀", shape: "corvid",
-    headR: 5.3, bodyRx: 6, bodyRy: 4.9, beakLen: 4.6, beakH: 3.2, legLen: 2, arched: true,
+    headR: 6.3, bodyRx: 7.4, bodyRy: 6, beakLen: 5.4, beakH: 3.7, legLen: 2.3, arched: true, bulk: 1.1,
     body: "ink", cap: "ink", head: "ink", cheek: "ink", chest: "ink", belly: "ink",
-    wing: "ink", wingTip: "#4A4666", tail: { length: 7, color: "ink" }, gloss: "crowGloss",
+    wing: "ink", wingTip: "#4A4666", tail: { length: 7.5, color: "ink" }, gloss: "crowGloss",
     beak: "#4A4666", legs: "ink",
     walkSpeed: 14, habits: ["proud", "bob"],
     chirp: "croak", chirpPitch: 300,

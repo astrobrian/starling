@@ -70,11 +70,16 @@ const SONGBIRD_POSES = {
   sing: { head: [-0.5, -0.8], tilt: -0.65, open: 1.3, tail: -1 },
   sing2: { head: [-0.8, -1.2], tilt: -0.8, open: 1.9, tail: -1.5 },
   sleep: { head: [-0.9, 2.4], tilt: 0.45, beak: "tuck", tail: -0.6, body: [1.12, 1.14], legs: 0, asleep: true },
+  roost: { head: [-0.9, 2.4], tilt: 0.45, beak: "tuck", hang: 60, body: [1.12, 1.14], legs: 0, asleep: true },   // asleep on a twig, the tail hanging down
   crouch: { head: [0.3, 1.5], tail: 1.5, body: [1.07, 0.9], legs: 1 },
   jump: { head: [0, -0.8], tail: -1.5, body: [0.95, 1.05], legs: "long" },
   soak: { head: [0.8, 1.2], tail: 3, body: [1.1, 1.08], legs: 0, water: true },
   bathe: { head: [0.8, 1.2], tail: 3.5, body: [1.1, 1.08], legs: 0, wing: "half", water: true },
   bathe2: { head: [1.7, 2.6], tail: 4, body: [1.1, 1.08], legs: 0, wing: "low", water: true },
+  pant: { open: 1.1, wing: "ajar" },                     // a hot day: the beak held open, the wings a little out from the body
+  pant2: { open: 1.1, wing: "ajar", throat: true },       // ...and its throat fluttering (a pixel fuller)
+  wings: { wing: "half", tail: -0.5 },                   // wings lifted: a proud flap, showing off
+  fan: { wing: "half", open: 1.1, tail: -0.5 },          // fanning itself with a wing, panting
 };
 
 function turned(cx, cy, dx, dy, angle) {
@@ -126,6 +131,21 @@ function songbirdFlap(bird, frame) {
   const out = outline(buf);
   birdEye(out, Math.round(hx + hr * 0.22) + 1, Math.round(hy - hr * 0.37) + 1, bird, 2, hr < 4 ? 2 : 3);
   return packBird(out, bx, by + ry * 0.93 + 2, hx, hy - hr);
+}
+
+const roostLeafCache = {};
+function roostLeaves(bird, n, step, color = "leaf") {
+  const key = [bird.name, n, step, color].join("/");
+  if (roostLeafCache[key]) return roostLeafCache[key];
+  const s = renderBird(bird, "roost"), headH = s.footY - s.headY;
+  const w = Math.round((n - 1) * step + 24), h = headH + 12, ax = w / 2, ay = headH + 5;
+  const back = new PixelBuffer(w, h);
+  clumpCanopy(back, ax, ay - headH / 2 + 0.5, w / 2 - 0.5, headH / 2 + 4.5, color, 40 + n, { clump: 3.4, tips: 6, bias: 1 });
+  const front = new PixelBuffer(w, h);
+  const spots = [[ax - w / 2 + 4, ay - 1, 3.4], [ax + w / 2 - 4, ay - 1, 3.4]];
+  for (let i = 1; i < n - 1; i += 2) spots.push([ax + (i - (n - 1) / 2) * step, ay + 1, 2.4]);
+  spots.forEach(([x, y, r], k) => clumpCanopy(front, x, y, r + 0.5, r, color, 50 + k, { clump: r * 0.75, tips: 2, inner: 1 }));
+  return (roostLeafCache[key] = { back: outline(back).toCanvas(), front: outline(front).toCanvas(), ax: Math.round(ax) + 1, ay: ay + 1 });
 }
 
 function bobbed(s) {
@@ -202,15 +222,22 @@ const BIRD_SHAPES = {
     const hx = bx + rx0 * 0.77 + dhx, hy = by - ry0 * 1.22 + dhy;
     const water = P.water ? Math.round(by + ry * 0.2) : null;
     const clip = water === null ? undefined : (x, y) => y < water;
+    const hang = P.hang ? { a: (P.hang * Math.PI) / 180, x: bx - rx * 0.58 + 0.6, y: by + 0.2, len: L + 2 } : null;
     const W = Math.ceil(hx + hr * 0.85 + beakLen + 3);
-    const H = water === null ? Math.ceil(by + ry + (flying ? legLen : legs) + 2) : water + 1;
+    const H = water === null ? Math.ceil(Math.max(by + ry + (flying ? legLen : legs), hang ? hang.y + Math.sin(hang.a) * hang.len + 1 : 0) + 2) : water + 1;
     const buf = new PixelBuffer(W, H);
 
     const lift = P.tail || 0;
-    buf.polygon([
-      [bx - rx * 0.58, by - 1.2], [bx - rx * 0.58, by + 1.6],
-      [bx - 3.5 - L, by - 0.6 - L * 0.12 - lift], [bx - 3.5 - L, by - 2 - L * 0.12 - lift],
-    ], bird.tail.color, { clip });
+    if (hang) {
+      const dx = -Math.cos(hang.a), dy = Math.sin(hang.a), nx = dy, ny = -dx;
+      const tx = hang.x + dx * hang.len, ty = hang.y + dy * hang.len;
+      buf.polygon([[hang.x + nx * 1.5, hang.y + ny * 1.5], [hang.x - nx * 1.5, hang.y - ny * 1.5], [tx - nx * 0.8, ty - ny * 0.8], [tx + nx * 0.8, ty + ny * 0.8]], bird.tail.color);
+    } else {
+      buf.polygon([
+        [bx - rx * 0.58, by - 1.2], [bx - rx * 0.58, by + 1.6],
+        [bx - 3.5 - L, by - 0.6 - L * 0.12 - lift], [bx - 3.5 - L, by - 2 - L * 0.12 - lift],
+      ], bird.tail.color, { clip });
+    }
 
     let wing = null, tip = null;
     if (P.wing === "half") {
@@ -242,9 +269,11 @@ const BIRD_SHAPES = {
       if (bird.wingPatch) buf.line(...at(wing[0], front, 0.35), ...at(wing[1], back, 0.8), 1.6, bird.wingPatch, { onlyFilled: true, clip });
       else if (bird.wingBar) buf.line(...at(wing[0], back, 0.3), ...at(wing[1], front, 0.3), 1, bird.wingBar, { onlyFilled: true, clip });
     } else {
-      const wing = [bx - rx * 0.31, by - ry * 0.2, rx * 0.69, ry * 0.46];
+      const ajar = P.wing === "ajar" ? 1 : 0;
+      const wing = [bx - rx * 0.31 - ajar * 0.6, by - ry * 0.2 + ajar * 1.4, rx * 0.69, ry * 0.46];
+      if (ajar) buf.line(bx - rx * 0.95, by - ry * 0.05 + 0.6, bx + rx * 0.3, by - ry * 0.45 + 0.6, 1, rampFor(bird.body)[3], { onlyFilled: true });
       buf.ellipse(...wing, bird.wing, clip && { clip });
-      buf.polygon([[bx - rx * 0.88, by - ry * 0.35], [bx - rx * 0.88, by + ry * 0.39], [bx - rx * 1.54, by + ry * 0.26]], bird.wingTip, clip && { clip });
+      buf.polygon([[bx - rx * 0.88 - ajar, by - ry * 0.35 + ajar * 1.4], [bx - rx * 0.88 - ajar, by + ry * 0.39 + ajar * 1.4], [bx - rx * 1.54 - ajar * 1.5, by + ry * 0.26 + ajar * 2.4]], bird.wingTip, clip && { clip });
       if (bird.wingPatch) buf.ellipse(bx - rx * 0.15, by - ry * 0.26, rx * 0.54, ry * 0.3, bird.wingPatch, { onlyFilled: true, shadeAs: wing });
       if (bird.wingBar) buf.line(bx - rx * 0.9, by + ry * 0.05, bx + rx * 0.25, by - ry * 0.25, 1, bird.wingBar, { onlyFilled: true });
       if (bird.wingScales) {
@@ -267,6 +296,7 @@ const BIRD_SHAPES = {
     const cheekScale = bird.cheekSize || 1;
     mark(hr * 0.26, hr * (bird.cheekY || 0.44), hr * 0.41 * cheekScale, hr * 0.26 * cheekScale, bird.cheek, { onlyFilled: true, shadeAs: head });
     if (bird.bib) mark(hr * 0.42, hr * 0.92, hr * 0.3, hr * 0.24, bird.bib, { onlyFilled: true, flat: true });
+    if (bird.breastBand) mark(hr * 0.3, hr * 1.0, hr * 0.62, hr * 0.26, bird.breastBand, { onlyFilled: true, flat: true });
     if (bird.neckSpot) buf.circle(...at(-hr * 0.55, hr * 0.55), 1.1, bird.neckSpot, { onlyFilled: true, flat: true });
     if (bird.neckPatch) {
       const [px, py] = at(-hr * 0.8, hr * 0.2);
@@ -298,6 +328,8 @@ const BIRD_SHAPES = {
     } else {
       buf.triangle(bxp, byp, bxp + beakLen, byp + beakH * 0.5, bxp, byp + beakH, bird.beak, { flat: true });
     }
+
+    if (P.throat) buf.ellipse(...at(hr * 0.62, hr * 0.62), 1.3, 1.1, bird.bib || bird.chest || bird.head, { flat: true });
 
     if (!flying && legs > 0) {
       buf.rect(bx - rx * 0.31, by + ry * 0.93, 1, legs, bird.legs, { flat: true });

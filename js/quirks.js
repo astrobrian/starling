@@ -255,9 +255,7 @@ const Quirks = (() => {
         if (q.t - q.at > 0.4 && q.holding) {
           q.holding = false;
           const t = q.flower, look = (window.FLOWERS || {})[t.species] || {};
-          const s = State.get();
-          s.hairFlower = { day: today(), color: t.color || "petalPink", center: look.center || "beeYellow", ear: q.back.side > 0 ? "left" : "right" };
-          State.save();
+          State.setHairFlower({ day: today(), color: t.color || "petalPink", center: look.center || "beeYellow", ear: q.back.side > 0 ? "left" : "right" });
           const f = herFeet();
           pop("sparkles", Math.round(f.x + q.back.side * 7), Math.round(f.p.y - TILE + 8));
           showEmote("player", "heart");

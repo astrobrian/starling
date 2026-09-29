@@ -284,7 +284,7 @@ const Wildlife = (() => {
     },
   };
 
-  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2 };
+  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2, pant: 0, fan: 1.8, flap: 1.2, shake: 0.56 };
   const HOP_TIME = { jump: 0.55, dance: 0.4 };
   const MELODY = [1, 1.12, 1.26, 1.12, 1.5, 1.33, 1.26];
 
@@ -321,7 +321,7 @@ const Wildlife = (() => {
         }
       } else pose = "tipUp";
     } else if (a.name === "sleep") {
-      pose = "sleep";
+      pose = owner.does === "perch" && (look.shape || "songbird") === "songbird" ? "roost" : "sleep";
       if (t >= a.nextCue) { cue("zzz", owner.faceLeft ? 1 : -1); a.nextCue = t + (a.cueEvery || rand(3.2, 5.5)); }
     } else if (a.name === "jump") {
       const k = t % HOP_TIME.jump;
@@ -334,6 +334,17 @@ const Wildlife = (() => {
       a.turn = turn;
       lift = Math.sin(((t % per) / per) * Math.PI) * 5;
       pose = lift > 1.5 ? "jump" : "crouch";
+    } else if (a.name === "pant") {
+      pose = Math.floor(t / 0.16) % 2 ? "pant2" : "pant";
+    } else if (a.name === "fan") {
+      pose = Math.floor(t / 0.12) % 2 ? "fan" : "pant";
+    } else if (a.name === "flap") {
+      pose = Math.floor(t / 0.1) % 2 ? "wings" : "stand";
+      lift = Math.abs(Math.sin(t * Math.PI * 2.5)) * 2;
+    } else if (a.name === "shake") {
+      const turn = Math.floor(t / 0.14);
+      if (a.turn !== undefined && turn !== a.turn) flip = true;
+      a.turn = turn;
     }
     a.done = t >= a.dur;
     return { pose, lift, flip };
@@ -477,7 +488,7 @@ const Wildlife = (() => {
     list = list.filter(Boolean);
     if (!list.length) return Promise.resolve([]);
     const n = list.length, look = list[0].look;
-    const step = gap || Math.max(6, Math.round((look.bodyRx || 5.2) * 2 * 1.12 * 0.92));
+    const step = gap || Math.max(8, Math.round((look.bodyRx || 5.2) * 2 * 1.12 * 0.92) + 2);
     const base = sortY === null ? y + 0.5 : sortY;
     const settle = (b, i) => { b.faceLeft = faceLeft; b.sortY = base + (faceLeft ? i : n - 1 - i) * 0.001; };
     list.forEach((b, i) => { finishAct(b); b.does = "perch"; b.shy = false; b.thought = null; b.run = null; b.hiddenIn = null; b.gone = false; settle(b, i); });
@@ -710,7 +721,7 @@ const Wildlife = (() => {
     if (pose === "swim" && (shape === "duck" || shape === "grebe") && Math.floor(now * 1.4 + seed * 5) % 2) pose = "swim-bob";
     if (!b.blinkAt) b.blinkAt = now + 1 + Math.random() * 4;
     if (now > b.blinkAt) { b.blinkUntil = now + 0.12; b.blinkAt = now + 2.5 + Math.random() * 2.5; }
-    const blink = shape !== "owl" && !["fly", "fly1", "fly2", "dabble", "sleep"].includes(pose) && now < (b.blinkUntil || 0);
+    const blink = shape !== "owl" && !["fly", "fly1", "fly2", "dabble", "sleep", "roost"].includes(pose) && now < (b.blinkUntil || 0);
     return renderBird(b.look, pose, blink);
   }
 
@@ -745,7 +756,29 @@ const Wildlife = (() => {
     const seen = birds.filter((b) => !b.gone && Math.abs(b.x - (view.x + view.w / 2)) < view.w / 2 + 60 && Math.abs(b.y - (view.y + view.h / 2)) < view.h / 2 + 80);
     const out = seen.map((b) => ({ bottom: b.flight || b.does === "hawk" ? 1e6 : b.sortY !== null ? b.sortY : b.y, draw: () => drawBird(ctx, b), bird: b }));
     for (const b of seen) if ((b.flight || b.does === "hawk") && b.lift > 3) out.push({ bottom: b.y - 0.1, draw: () => drawShadow(b.x, b.y, 3, 1) });
+    for (const row of roostRows(seen)) {
+      const n = row.length, first = row[0], last = row[n - 1], cx = Math.round((first.x + last.x) / 2), y = Math.round(first.y);
+      const L = roostLeaves(first.look, n, n > 1 ? Math.round((last.x - first.x) / (n - 1)) : 8, leafColorAt(cx, y));
+      const keys = row.map((b) => (b.sortY !== null ? b.sortY : b.y));
+      out.push({ bottom: Math.min(...keys) - 0.0002, draw: () => ctx.drawImage(L.back, cx - L.ax, y - L.ay) });
+      out.push({ bottom: Math.max(...keys) + 0.0002, draw: () => ctx.drawImage(L.front, cx - L.ax, y - L.ay) });
+    }
     return out;
+  }
+
+  function roostRows(seen) {
+    const rows = [];
+    const asleep = seen.filter((b) => b.pose === "roost" && !b.flight && !b.hop).sort((p, q) => p.x - q.x);
+    for (const b of asleep) {
+      const row = rows.find((r) => r[0].species === b.species && Math.abs(r[0].y - b.y) <= 2 && b.x - r[r.length - 1].x <= 12);
+      if (row) row.push(b); else rows.push([b]);
+    }
+    return rows;
+  }
+
+  function leafColorAt(x, y) {
+    const host = WORLD.things.find((t) => ["bush", "hedge", "berryBush"].includes(t.type) && Math.abs(t.footX - x) <= 16 && t.footY >= y && t.footY - y <= 24);
+    return host && host.type !== "bush" ? "hedge" : "leaf";
   }
 
   const thoughtCache = {};
@@ -767,9 +800,18 @@ const Wildlife = (() => {
     return (thoughtCache[key] = out.toCanvas());
   }
 
-  function drawThoughtAt(ctx, x, y, icon, time, side = 1) {
+  function drawThoughtAt(ctx, x, y, icon, time, side = 1, dx = 0, dy = 0) {
     const m = CUE, c = thoughtSprite(icon);
     const bob = Math.round(Math.sin(time * 2.2) * 1.2 * m);
+    if (dx || dy) {
+      const tx = x + dx + side * (1 - 0.4 * m), ty = y + dy - 0.8 * m - 2 + bob;
+      const steps = Math.min(3, Math.ceil(Math.hypot(tx - x, ty - y) / (5 * m)));
+      for (let i = 1; i <= steps; i++) {
+        const k = i / (steps + 1), r = Math.max(1, Math.round((0.6 + 0.5 * k) * m));
+        drawDot(ctx, Math.round(x + (tx - x) * k), Math.round(y - 2 + (ty - y + 2) * k), r);
+      }
+    }
+    x += dx; y += dy;
     if (side < 0) {
       ctx.save();
       ctx.translate(Math.round(x + 2 * m), Math.round(y - c.height - 1 + bob));
@@ -782,12 +824,72 @@ const Wildlife = (() => {
     }
     ctx.drawImage(c, Math.round(x - 2 * m), Math.round(y - c.height - 1 + bob));
   }
+  const dotCache = {};
+  function drawDot(ctx, x, y, r) {
+    const c = dotCache[r] || (dotCache[r] = (() => { const b = new PixelBuffer(2 * r, 2 * r); b.circle(r, r, r, "cream", { flat: true }); return outline(b).toCanvas(); })());
+    ctx.drawImage(c, x - r - 1, y - r - 1);
+  }
+  function thoughtBox(x, y, side = 1, dx = 0, dy = 0) {
+    const m = CUE, w = 20 * m + 2, h = 17 * m + 2;
+    return { x: (side < 0 ? x + 2 * m - w : x - 2 * m) + dx, y: y - h - 1 + dy, w, h };
+  }
+
+  function thoughtBubbles() {
+    const groups = [];
+    for (const b of birds) {
+      if (!b.thought || b.gone || b.underwater || b.flight) continue;
+      const h = headTop(b);
+      const g = groups.find((q) => q.icon === b.thought && Math.abs(q.x - h.x) <= 26 && Math.abs(q.y - h.y) <= 14);
+      if (g) { g.birds.push(b); g.x = Math.round((g.x * (g.birds.length - 1) + h.x) / g.birds.length); g.y = Math.min(g.y, h.y); }
+      else groups.push({ birds: [b], icon: b.thought, x: h.x, y: h.y });
+    }
+    if (!groups.length) return groups;
+    const clear = keepClear();
+    for (const g of groups) {
+      Object.assign(g, placeThought(g.x, g.y, clear));
+      clear.push(g.box);
+    }
+    return groups;
+  }
+  function placeThought(x, y, clear, prefer = 1) {
+    const m = CUE, a = prefer < 0 ? -1 : 1;
+    const overlap = (p, r) => Math.max(0, Math.min(p.x + p.w, r.x + r.w) - Math.max(p.x, r.x)) * Math.max(0, Math.min(p.y + p.h, r.y + r.h) - Math.max(p.y, r.y));
+    const tries = [[a, 0, 0], [-a, 0, 0], [a, 0, -6 * m], [-a, 0, -6 * m], [a, a * 8 * m, -4 * m], [-a, -a * 8 * m, -4 * m],
+      [a, 0, -12 * m], [-a, 0, -12 * m], [a, a * 14 * m, -8 * m], [-a, -a * 14 * m, -8 * m]];
+    let best = null;
+    for (const [side, dx, dy] of tries) {
+      const box = thoughtBox(x, y, side, dx, dy);
+      const cost = clear.reduce((sum, r) => sum + overlap(box, r), 0);
+      if (!best || cost < best.cost) best = { side, dx, dy, box, cost };
+      if (!cost) break;
+    }
+    return best;
+  }
+  function thoughtSpot(x, y, prefer = 1) {
+    return placeThought(x, y, [...keepClear(), ...thoughtBubbles().map((g) => g.box)], prefer);
+  }
+  function keepClear() {
+    const out = [];
+    if (!player.hidden && typeof playerPose === "function") {
+      const p = playerPixelPos(), pose = playerPose();
+      out.push({ x: p.x, y: p.y - TILE - pose.lift, w: pose.sprite.width, h: pose.sprite.height });
+    }
+    if (typeof Story !== "undefined" && Story && Story.wants) {
+      for (const t of WORLD.things) {
+        if (!t.tappable || !Story.wants(t)) continue;
+        const s = thingSprite(t, 1);
+        out.push({ x: t.footX - s.ax - 2, y: t.footY - s.ay - 2, w: s.canvas.width + 4, h: s.canvas.height + 4 });
+      }
+    }
+    return out;
+  }
   const thoughtIcon = (icon) => {
     const key = " icon " + icon + CUE;
     return thoughtCache[key] || (thoughtCache[key] = iconFromGrid(ICONS[icon] || ICONS.question, CUE > 1).toCanvas());
   };
 
   function drawOverlays(ctx, time) {
+    for (const g of thoughtBubbles()) drawThoughtAt(ctx, g.x, g.y, g.icon, time, g.side, g.dx, g.dy);
     for (const b of birds) {
       if (b.gone || b.underwater || b.flight) continue;
       if (b.species === "owl" && b.pose !== "blink" && Daylight.nightAmount() > 0.5) {
@@ -801,7 +903,6 @@ const Wildlife = (() => {
         }
       }
       const h = headTop(b);
-      if (b.thought) drawThoughtAt(ctx, h.x, h.y, b.thought, time);
       if (b.emote) {
         const icon = ICONS[b.emote.name] && emoteSprite(b.emote.name);
         const t = b.emote.age;
@@ -815,11 +916,11 @@ const Wildlife = (() => {
     }
   }
 
-  function wantedAt(gx, gy, minTapPx) {
-    for (const b of birds) {
-      if (!b.thought || b.gone || b.underwater || b.flight) continue;
-      const h = headTop(b);
-      if (gx >= h.x - 2 * CUE && gx < h.x + 20 * CUE && gy >= h.y - 20 * CUE && gy < h.y) return b;
+  function wantedAt(gx, gy, minTapPx, bubbles = true) {
+    for (const g of bubbles ? thoughtBubbles() : []) {
+      const r = g.box;
+      if (gx < r.x - 1 || gx >= r.x + r.w + 1 || gy < r.y - 1 || gy >= Math.max(r.y + r.h, g.y) + 1) continue;
+      return g.birds.reduce((a, b) => (Math.abs(b.x - gx) < Math.abs(a.x - gx) ? b : a));
     }
     let wanted = null;
     for (const b of birds) {
@@ -834,8 +935,8 @@ const Wildlife = (() => {
     return wanted && wanted.b;
   }
 
-  function birdAt(gx, gy, minTapPx) {
-    const wanted = wantedAt(gx, gy, minTapPx);
+  function birdAt(gx, gy, minTapPx, bubbles = true) {
+    const wanted = wantedAt(gx, gy, minTapPx, bubbles);
     if (wanted) return wanted;
     let hit = null;
     for (const b of birds) {
@@ -878,7 +979,7 @@ const Wildlife = (() => {
   function clear() { birds.forEach(finishAct); birds = []; hideouts.clear(); }
 
   return {
-    add, get, remove, schedule, update, items, drawOverlays, drawThoughtAt, birdAt, wantedAt, greet, celebrate, showEmote,
+    add, get, remove, schedule, update, items, drawOverlays, drawThoughtAt, thoughtSpot, birdAt, wantedAt, greet, celebrate, showEmote,
     flyTo, leave, hopTo, headTop, clear, all: () => birds, knock,
     act, stop: finishAct, hop, runTo, hideIn, popOut, rustle, roost,
     newAct, stepAct, drawCues,
