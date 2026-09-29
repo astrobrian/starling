@@ -4,7 +4,7 @@ window.BIRD_SCHEDULE = [
   { species: "sparrow", from: 2, when: ["morning", "noon"], at: [19.5, 12.5], does: "ground", range: 2, count: 2 },
   { species: "dove", from: 1, when: ["morning", "noon", "sunset"], at: [6.6, 3.2], does: "perch", height: 0, sortAfter: "house" },
   { species: "dove", from: 1, when: ["morning", "noon"], at: [9.4, 3.2], does: "perch", height: 0, sortAfter: "house" },
-  { species: "bulbul", from: 4, when: ["morning", "noon", "sunset"], at: [17.4, 4.4], does: "perch", height: 0, sortAfter: "plumTree" },
+  { species: "bulbul", from: 4, when: ["morning", "noon", "sunset"], at: [18.4, 4.4], does: "perch", height: 0, sortAfter: "plumTree" },
   { species: "tit", from: 2, when: ["morning", "noon"], at: [5.3, 16.1], does: "perch", height: 0, sortAfter: "birdhouse" },
   { species: "tit", from: 4, when: ["morning", "noon"], at: [13.9, 16.72], does: "perch", height: 0, sortAfter: "birdFeeder" },
   { species: "dove", from: 5, when: ["morning", "noon"], at: [6.03, 19.19], does: "perch", height: 0, sortAfter: "birdBath" },

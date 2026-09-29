@@ -16,11 +16,14 @@ const Sound = (() => {
   }
 
   function start() {
-    if (ac) { ac.resume(); return; }
+    if (ac) { wake(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    playLikeMusic();
     ac = new AC();
     if (ac.state === "suspended") ac.resume();
+    for (const type of ["pointerup", "touchend", "click", "keydown"]) document.addEventListener(type, wake, { passive: true });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) wake(); });
     master = ac.createGain();
     master.gain.value = 0.9;
     master.connect(ac.destination);
@@ -31,9 +34,36 @@ const Sound = (() => {
     applyVolumes();
   }
 
+  function wake() {
+    if (ac && ac.state !== "running" && ac.state !== "closed") ac.resume().catch(() => {});
+    if (silentLoop && silentLoop.paused) silentLoop.play().catch(() => {});
+  }
+
+  let silentLoop = null;
+  function playLikeMusic() {
+    try {
+      if (navigator.audioSession) { navigator.audioSession.type = "playback"; return; }
+    } catch (e) { /* not there: the silent loop below */ }
+    try {
+      silentLoop = new Audio(silentWav());
+      silentLoop.loop = true;
+      silentLoop.play().catch(() => {});
+    } catch (e) { silentLoop = null; }
+  }
+  function silentWav() {
+    const n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    const text = (at, t) => { for (let i = 0; i < t.length; i++) v.setUint8(at + i, t.charCodeAt(i)); };
+    text(0, "RIFF"); v.setUint32(4, 36 + n, true); text(8, "WAVE"); text(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    text(36, "data"); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  }
+
   function applyVolumes() {
     if (!ac) return;
-    musicBus.gain.setTargetAtTime(settings.music * 0.9, ac.currentTime, 0.1);
+    musicBus.gain.setTargetAtTime(settings.musicOff ? 0 : settings.music * 0.9, ac.currentTime, 0.1);
     sfxBus.gain.setTargetAtTime(settings.sound * 0.5, ac.currentTime, 0.05);
   }
 
@@ -276,12 +306,18 @@ const Sound = (() => {
     [1318.5, 1568, 2093].forEach((f, i) => bell(f, ac.currentTime + i * 0.07, 0.12));
   }
 
-  function tap(pitch = 520) {
-    blip({ type: "sine", from: pitch * 1.3, to: pitch, dur: 0.12, vol: 0.18 });
+  function tap(pitch = 520, vol = 0.18) {
+    blip({ type: "sine", from: pitch * 1.3, to: pitch, dur: 0.12, vol });
   }
 
   function buzz() {
     blip({ type: "sawtooth", from: 190, to: 170, dur: 0.28, vol: 0.06, filter: { type: "lowpass", freq: 700 } });
+  }
+
+  function setMusicOn(on) {
+    settings.musicOff = !on;
+    saveSettings();
+    applyVolumes();
   }
 
   function setVolume(kind, value) {
@@ -293,7 +329,7 @@ const Sound = (() => {
 
   return {
     start, playMusic, stopMusic, musicStatus, setQuietGap,
-    chirp, twinkle, tap, buzz, setVolume, settings,
+    chirp, twinkle, tap, buzz, setVolume, setMusicOn, musicOn: () => !settings.musicOff, settings,
     owlCall, hearts, pickup, door, splash, sleep, note,
     status: musicStatus,
   };

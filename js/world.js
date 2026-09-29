@@ -1,5 +1,5 @@
 
-const SMALL_FLOWERS = () => Object.keys(FLOWERS).filter((k) => FLOWERS[k].size === "small" && !FLOWERS[k].sown);
+const SMALL_FLOWERS = () => Object.keys(FLOWERS).filter((k) => FLOWERS[k].size === "small" && (!FLOWERS[k].sown || FLOWERS[k].wild));
 
 function makeRiver(R) {
   const P = [], Wd = [], T = [];

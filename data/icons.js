@@ -193,6 +193,64 @@ window.ICONS.menu = {
     "PPPPPPPPP",
   ],
 };
+window.ICONS.zoomIn = {
+  colors: { P: "plum" },
+  bare: true,
+  grid: [
+    "....PP....",
+    "....PP....",
+    "....PP....",
+    "....PP....",
+    "PPPPPPPPPP",
+    "PPPPPPPPPP",
+    "....PP....",
+    "....PP....",
+    "....PP....",
+    "....PP....",
+  ],
+};
+window.ICONS.zoomOut = {
+  colors: { P: "plum" },
+  bare: true,
+  grid: [
+    "PPPPPPPPPP",
+    "PPPPPPPPPP",
+  ],
+};
+window.ICONS.musicOn = {
+  colors: { P: "plum" },
+  bare: true,
+  grid: [
+    "....PP....",
+    "....PPP...",
+    "....PPPP..",
+    "....P.PPP.",
+    "....P..PP.",
+    "....P...P.",
+    "....P.....",
+    "..PPP.....",
+    ".PPPP.....",
+    ".PPPP.....",
+    "..PP......",
+  ],
+};
+window.ICONS.musicOff = {
+  colors: { P: "plum", N: "duskLavender" },
+  bare: true,
+  grid: [
+    "PP..NN....",
+    "PPP.NNN...",
+    ".PPPNNNN..",
+    "..PPP.NNN.",
+    "...PPP.NN.",
+    "....PPP.N.",
+    "....NPPP..",
+    "..NNN.PPP.",
+    ".NNNN..PPP",
+    ".NNNN...PP",
+    "..NN......",
+  ],
+};
 window.ICONS.back = {
   colors: { A: "duskLavender" },
   grid: [

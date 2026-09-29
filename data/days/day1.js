@@ -6,6 +6,8 @@ DAYS[1] = {
   chapter: 1,
   weather: "sunny",
 
+  wakeUp: "magpie",
+
   morning: [
     "d1_window",
     "d1_window_again",
@@ -58,10 +60,10 @@ DAYS[1] = {
       steps: [
         { near: "bigTree", reach: 3.2, lead: "d1_follow",
           magpie: { perch: { thing: "bigTree", dx: 16, dy: -30 }, sortAfter: "bigTree" },
-          tapWalks: ["sparrow", "magpie"], intoView: true },
+          tapWalks: ["sparrow", "magpie"], intoView: true, front: true },
         { learn: ["follow", "tree"] },
         { wait: 0.4 },
-        { scene: [{ magpie: "follow" }, { wait: 0.6 }, { emote: "heart" }, { emote: "sweat", on: "sparrow" }, { wait: 0.4 }] },
+        { scene: [{ magpie: "follow" }, { wait: 0.6 }, { emote: "heart" }, { moment: "tummy", on: "sparrow" }, { wait: 0.4 }] },     // (its tummy rumbles, like the magpie's)
         "d1_hello_sparrow",
         { moment: "chirpDuet", bird: "sparrow" },
         "d1_sparrow",
@@ -80,6 +82,7 @@ DAYS[1] = {
     {
       id: "friends",
       steps: [
+        { moment: "hearts", on: ["sparrow", "her", "magpie"] },
         { scene: [{ magpie: "head" }, { wait: 0.6 }] },
         { say: "d1_friends", replies: { "Hello!": "d1_friend_again" } },
         { learn: ["friend"] },

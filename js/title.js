@@ -297,7 +297,7 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     scene = makeTitleScene(W, H, { day: callbacks.day ? callbacks.day() : 1 });      // (the moon of her day)
   }
 
-  const CARDS = ["confirm", "settings", "credits", "backup-card", "backup-offer", "diary"];
+  const CARDS = ["confirm", "settings", "credits", "backup-card", "backup-offer", "diary", "fullscreen-card"];
   function loop(now) {
     if (!open) return;
     clock += Math.min(0.05, (now - last) / 1000 || 0);
@@ -367,6 +367,19 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
       if (!open || e.key !== "Enter" || !$("confirm").classList.contains("hidden") || !$("credits").classList.contains("hidden")) return;
       (cb.hasProgress() ? cont : fresh).click();
     });
+
+    const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const homeScreen = navigator.standalone === true || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+    const withKorean = (el, en, ko) => { el.textContent = en; const k = document.createElement("small"); k.className = "korean"; k.textContent = ko; el.appendChild(k); };
+    fill($("title-fullscreen"), UI_TEXT.fullScreen);
+    $("title-fullscreen").classList.toggle("hidden", !(apple && !homeScreen) && !PARAMS.has("fullscreenTip"));
+    withKorean($("fullscreen-title"), UI_TEXT.fullScreen, UI_TEXT.fullScreenKorean);
+    for (const [en, ko] of UI_TEXT.fullScreenSteps) { const li = document.createElement("li"); withKorean(li, en, ko); $("fullscreen-steps").appendChild(li); }
+    withKorean($("fullscreen-note"), UI_TEXT.fullScreenNote[0], UI_TEXT.fullScreenNote[1]);
+    fill($("fullscreen-done"), UI_TEXT.done);
+    $("title-fullscreen").addEventListener("click", () => { unlock(false); $("fullscreen-card").classList.remove("hidden"); });
+    $("fullscreen-done").addEventListener("click", () => $("fullscreen-card").classList.add("hidden"));
+    $("fullscreen-card").addEventListener("pointerdown", (e) => { if (e.target === $("fullscreen-card")) $("fullscreen-card").classList.add("hidden"); });
 
     fill($("credits-title"), UI_TEXT.credits);
     const d = window.DEDICATION || {};

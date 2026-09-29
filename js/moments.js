@@ -7,15 +7,29 @@ const Moments = (() => {
     else Wildlife.hopTo(b, x, y);
     b.home = { x, y };
   };
+  const stepBack = async (t, [dx, dy], K) => {
+    const spot = { x: player.nx + dx, y: player.ny + dy };
+    if (!t || !isWalkable(spot.x, spot.y) || hiddenBehind(spot.x, spot.y)) return;
+    walkToward(spot);
+    player.faceAt = { x: t.x, y: t.y };
+    await K.until(() => !isMoving() && !player.path.length);
+  };
 
   M.fallenStar = async (s, K) => {
     const patch = FLOWER_PATCHES[s.patch || 0];
     companion.mode = "perch"; companion.px = K.px(patch.x + 3); companion.py = K.px(patch.y - 5);
-    magpieFlyTo("perch", K.px(patch.x + 1.5), K.px(patch.y - 1.9) + 14, K.px(patch.y - 1.9) + 14);
+    const wait = { x: K.px(patch.x + patch.rx + 1), y: K.px(patch.y) + 14 };
+    magpieFlyTo("perch", wait.x, wait.y, wait.y);
     K.G.guide = () => (scene.name === "garden" && !Closeup.isOpen() ? { x: K.px(patch.x) + 8, y: K.px(patch.y) + 4 } : null);
+    K.G.onMagpie = () => {
+      companion.joy = 0.35;
+      Sound.chirp(MAGPIE_VOICE.chirp, MAGPIE_VOICE.pitch);
+      walkToward({ x: Math.floor(patch.x), y: Math.floor(patch.y) });
+      return true;
+    };
     K.resetStar();
     await K.until(() => K.starFound());
-    K.G.guide = null;
+    K.G.guide = null; K.G.onMagpie = null;
     await K.scripted(async () => {
       await K.wait(0.8);
       closeCloseup();
@@ -31,6 +45,35 @@ const Moments = (() => {
     Sound.buzz();
     K.emote(s.on || "magpie", "sweat");
     await K.wait(0.7);
+  });
+
+  M.hearts = (s, K) => K.scripted(async () => {
+    const gap = s.gap || 0.7, hold = gap + 0.5;          // (each act outlasts the gap: it stays put, turning, not hopping off)
+    for (const who of [].concat(s.on || [])) {
+      if (who === "magpie") {
+        magpieAct("flap", hold);
+        Sound.chirp(MAGPIE_VOICE.chirp, MAGPIE_VOICE.pitch);
+      } else {
+        const b = who === "her" ? null : K.bird(who);
+        const at = who === "her" ? K.herFeet() : b && { x: b.x, y: b.y };
+        if (!at) continue;
+        const f = companionFoot();
+        if (Math.abs(at.x - f.x) > 2) companion.faceLeft = at.x < f.x;
+        magpieAct(at.y < f.y - 12 ? "lookUp" : "look", hold);
+        if (b) Wildlife.greet(b); else Sound.tap(760);
+      }
+      K.emote(who, "heart");
+      await K.wait(gap);
+    }
+    magpieAct(null);
+  });
+
+  M.lookUpDown = (s, K) => K.scripted(async () => {
+    const face = (x) => { const f = companionFoot(); if (Math.abs(x - f.x) > 2) companion.faceLeft = x < f.x; };
+    const up = s.up && K.findThing(s.up), f = companionFoot();
+    const down = birdsOf({ birds: s.down }, K).sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
+    if (up) { face(up.footX); await magpieAct("lookUp", s.upSeconds || 1.2); }
+    if (down) { face(down.x); await magpieAct("lookDown", s.downSeconds || 1.0); }
   });
 
   M.chirpDuet = (s, K) => K.scripted(async () => {
@@ -110,6 +153,7 @@ const Moments = (() => {
     feeder.bounce = 0.4;
     Sound.pickup();
     if (b) b.thought = null;
+    const back = s.stepBack ? stepBack(feeder, s.stepBack, K) : null;
     await K.wait(0.3);
     const flocks = [].concat(s.flock || { species: "sparrow", count: 3 });
     const total = flocks.reduce((n, f) => n + (f.count || 1), 0);
@@ -128,6 +172,7 @@ const Moments = (() => {
     await K.wait(0.6);
     if (b) Wildlife.celebrate(b);
     await K.wait(0.8);
+    if (back) await back;
   });
 
   M.nameTheMagpie = async (s, K) => {
@@ -380,14 +425,7 @@ const Moments = (() => {
     } else await K.wait(0.6);
     Sound.splash();
     if (t) { if (s.variant !== undefined) t.variant = s.variant; t.bounce = 0.4; }
-    if (s.stepBack && t) {
-      const [dx, dy] = s.stepBack, spot = { x: player.nx + dx, y: player.ny + dy };
-      if (isWalkable(spot.x, spot.y) && !hiddenBehind(spot.x, spot.y)) {
-        walkToward(spot);
-        player.faceAt = { x: t.x, y: t.y };
-        await K.until(() => !isMoving() && !player.path.length);
-      }
-    }
+    if (s.stepBack) await stepBack(t, s.stepBack, K);
   };
 
   return M;

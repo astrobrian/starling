@@ -967,6 +967,12 @@ function handleTap(sx, sy, pointerId) {
 
   if (!target && Husband.at(gx, gy, minTap())) { Husband.tap(); return; }
 
+  const behindHer = !target && WORLD.garden && !player.hidden && thingAt(gx, gy, true);
+  if (behindHer && behindHer.type === "house" && housePart(behindHer, gx, gy) === "door") {
+    const at = playerPixelPos(), look = playerPose();
+    if (isSolid(look.sprite, gx - Math.round(at.x), gy - (Math.round(at.y) - TILE - look.lift))) { walkToThing(behindHer, THINGS.door.name); return; }
+  }
+
   const her = playerPixelPos(), pose = playerPose();
   if (!target && !player.hidden && isSolid(pose.sprite, gx - Math.round(her.x), gy - (Math.round(her.y) - TILE - pose.lift))) {
     showEmote("player", "sparkles");
@@ -1001,7 +1007,9 @@ function handleTap(sx, sy, pointerId) {
     }
     return;
   }
-  const fly = WORLD.garden && !target && CRITTERS && CRITTERS.flies.find((f) => Math.hypot(f.x - gx, f.y - gy) < Math.max(8, minTap() / 2));
+  const flies = WORLD.garden && !target && CRITTERS && Daylight.nightAmount() < 0.5;
+  const fly = flies && (CRITTERS.flyAt(gx, gy, performance.now() / 1000)
+    || (!thingAt(gx, gy, true) && CRITTERS.flies.find((f) => Math.hypot(f.x - gx, f.y - gy) < Math.max(8, minTap() / 2))));
   if (fly) { magpieSays("butterfly"); Husband.reached({ name: "butterfly", footX: fly.x, footY: fly.y + 9 }); return; }
 
   if (Story && WORLD.garden && !target && Story.tapEffect(gx, gy)) return;
@@ -1163,8 +1171,10 @@ husbandButton.addEventListener("pointerdown", (e) => {
   Sound.tap(700);
 });
 let husbandButtonKind = undefined;
+const OVER_CARDS = ["doll-card", "sleep-card", "name-card", "day-card"].map((id) => document.getElementById(id)).filter(Boolean);
+const cardOver = () => OVER_CARDS.some((el) => !el.classList.contains("hidden"));
 function showHusbandButton() {
-  const kind = Husband.button();
+  const kind = cardOver() ? null : Husband.button();
   if (kind !== husbandButtonKind) {
     husbandButtonKind = kind;
     husbandButton.classList.toggle("hidden", !kind);
@@ -1172,7 +1182,7 @@ function showHusbandButton() {
     if (kind) husbandButton.querySelector("span").textContent = kind === "call" ? UI_TEXT.callHusband : kind === "bye" ? UI_TEXT.byeForNow : "…";
   }
   const free = started && !changingPlace && !Closeup.isOpen() && !Sky.isOpen() && !(Speech && Speech.isOpen()) && !(Story && Story.busy()) && !player.hidden
-    && !(Story && Story.inRoutine && Story.inRoutine());          // (our morning, our evening: they stay home)
+    && !(Story && Story.inRoutine && Story.inRoutine()) && !cardOver();          // (our morning, our evening: they stay home)
   const visit = !free ? null : WORLD.small ? "home" : "visit";
   if (visit !== visitButtonKind) {
     visitButtonKind = visit;
@@ -1183,6 +1193,10 @@ function showHusbandButton() {
     }
   }
   visitButton.classList.toggle("second", !!kind);
+}
+function showCornerButtons() {
+  const playing = started && !(Title.isOpen && Title.isOpen()) && !cardOver();
+  UI.showCornerButtons(playing, !Closeup.isOpen() && !Sky.isOpen() && !upCloseShown);
 }
 const visitButton = document.getElementById("visit-button");
 const visitIcons = { visit: iconFromGrid(ICONS.observatory).toCanvas(), home: iconFromGrid(ICONS.cottage).toCanvas() };
@@ -1209,6 +1223,7 @@ if (!(zoom in ZOOM_TILES)) zoom = "normal";
 let scale = 1;               // device pixels per game pixel
 let skyShown = false;        // the word sky is open (the game is at normal zoom for it)
 let closeupShown = false;    // the flower close-up is open (or opening)
+let upCloseShown = false;    // a tender moment plays up close (see upClose)
 
 function scaleFor(tiles) {
   const vh = window.innerHeight * (window.devicePixelRatio || 1);
@@ -1223,7 +1238,7 @@ function resize() {
   const vw = window.innerWidth * dpr, vh = window.innerHeight * dpr;
   const normal = scaleFor(ZOOM_TILES.normal);
   scale = scaleFor(ZOOM_TILES[zoom] || ZOOM_TILES.normal);
-  if (closeupShown || WORLD.indoors || WORLD.small) scale = Math.max(scale, normal);
+  if (closeupShown || WORLD.indoors || WORLD.small || upCloseShown) scale = Math.max(scale, normal);
   if (skyShown) scale = normal;                                   // (the night sky is always seen at normal zoom)
   CUE = scale < normal ? 2 : 1;
   canvas.width = Math.ceil(vw / scale);
@@ -1278,7 +1293,7 @@ function herScreenBox() {
 
 const camera = { x: 0, y: 0 };
 
-const cameraGoal = { x: null, y: null };
+const cameraGoal = { x: null, y: null, lift: 0 };
 function updateCamera(dt = 1) {
   const p = playerPixelPos();
   const mapPxW = MAP_W * TILE, mapPxH = MAP_H * TILE;
@@ -1287,23 +1302,72 @@ function updateCamera(dt = 1) {
   const box = document.getElementById("speech");
   const talk = box && !box.classList.contains("hidden") ? (box.offsetHeight * (window.devicePixelRatio || 1)) / scale / 2 : 0;
   const gx = follow(p.x + TILE / 2, canvas.width, mapPxW);
-  let gy = follow(p.y + TILE / 2 + talk, canvas.height, mapPxH + 2 * talk);
+  let gy = follow(p.y + TILE / 2, canvas.height, mapPxH);
   if (WORLD.small && !talk && mapPxH > canvas.height && mapPxH - canvas.height < TILE) gy = Math.max(0, Math.min(mapPxH - canvas.height, p.y + TILE + 6 - canvas.height));
   const house = WORLD.things.find((t) => t.type === "house");
-  if (house && !talk) {
+  if (house) {
     const k01 = (v) => Math.max(0, Math.min(1, v));
     const rows = (p.y - house.footY) / TILE, side = Math.abs(p.x + 8 - house.footX) / TILE;
     const w = k01((4 - rows) / 2) * k01((5 - side) / 2);       // full within 2 rows of her door, gone by 4
     const want = Math.max(0, house.footY - 104, p.y + TILE - 0.8 * canvas.height);      // (room above the chimney for its smoke)
     gy += (Math.min(gy, want) - gy) * w;
   }
-  if (cameraGoal.x === null || Math.hypot(gx - cameraGoal.x, gy - cameraGoal.y) > 80) { cameraGoal.x = gx; cameraGoal.y = gy; }
+  const lift = talk ? keepAboveBox(gy) - gy : 0;
+  if (cameraGoal.x === null || Math.hypot(gx - cameraGoal.x, gy - cameraGoal.y) > 80) { cameraGoal.x = gx; cameraGoal.y = gy; cameraGoal.lift = lift; }
   const k = Math.min(1, dt * 12);
   cameraGoal.x += (gx - cameraGoal.x) * k;
   cameraGoal.y += (gy - cameraGoal.y) * k;
+  cameraGoal.lift += (lift - cameraGoal.lift) * Math.min(1, dt * 8);
   const clampTo = (v, view, world) => (world <= view ? (world - view) / 2 : Math.max(0, Math.min(world - view, v)));
   camera.x = Math.round(clampTo(Math.round(p.x) - Math.round(p.x - cameraGoal.x), canvas.width, mapPxW));
-  camera.y = Math.round(clampTo(Math.round(p.y) - Math.round(p.y - cameraGoal.y), canvas.height, mapPxH + 2 * talk));
+  camera.y = Math.round(clampTo(Math.round(p.y) - Math.round(p.y - cameraGoal.y - cameraGoal.lift), canvas.height, mapPxH + Math.max(2 * talk, cameraGoal.lift)));
+}
+
+function keepAboveBox(y) {
+  const room = speechBoxTop() - 4 * CUE, top = 2;
+  let lo = -Infinity, hi = Infinity;
+  for (const [above, below] of inViewWhileTalking()) {
+    const l = Math.max(lo, below - room), h = Math.min(hi, above - top);
+    if (l <= h) { lo = l; hi = h; }
+  }
+  return Math.max(lo, Math.min(hi, y));
+}
+
+function speechBoxTop() {
+  const box = document.getElementById("speech");
+  if (!box || box.classList.contains("hidden")) return null;
+  const r = canvas.getBoundingClientRect();
+  return ((box.offsetTop - r.top) * canvas.height) / r.height;
+}
+
+function inViewWhileTalking() {
+  const p = playerPixelPos(), spans = [[p.y - TILE - (playerPose().lift || 0) - 2, p.y + TILE]];
+  const bubble = 17 * CUE + 4;                                        // (a thought bubble over a head)
+  const near = (x, y) => Math.abs(x - (p.x + 8)) < canvas.width / 2 && Math.abs(y - (p.y + 8)) < canvas.height;
+  const bubbles = WORLD.garden && Wildlife.thoughtBubbles ? Wildlife.thoughtBubbles() : [];
+  const birdSpan = (b) => {
+    const h = Wildlife.headTop(b), g = b.thought && bubbles.find((q) => q.birds.includes(b));
+    return [g ? Math.min(g.box.y, h.y - 3) : h.y - (b.thought ? bubble : 3), b.y + 1];
+  };
+  const look = Story && Story.inView ? Story.inView() : { guides: [], birds: [], thought: false };
+  const who = Speech.speaker();
+  const birds = WORLD.garden ? Wildlife.all().filter((b) => !b.gone && !b.underwater && !b.flight && near(b.x, b.y)) : [];
+  if (who === "magpie" && (companion.mode !== "away" || companion.flight)) {
+    const b = companionBox();
+    spans.push([(look.thought ? Math.min(b.y, companionHeadTop().y - bubble) : b.y) - 2, b.y + b.h]);
+  } else if (who === "husband" && !["away", "atWork"].includes(Husband.state())) {
+    const h = Husband.pos();
+    spans.push([h.y - TILE - 2, h.y + TILE]);
+  } else if (who && BIRDS[who]) {
+    const kind = birds.filter((b) => b.species === who).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+    const story = kind.filter((b) => b.story);
+    for (const b of story.length ? story : kind.slice(0, 1)) spans.push(birdSpan(b));
+  }
+  for (const g of look.guides) if (!!g.room === (scene.name === "room") && near(g.x, g.y)) spans.push([g.y - 14 * CUE, g.y]);   // (its sparkle, over it)
+  const wanted = (b) => b.story && (b.thought || b.onTap || b.onReach || look.birds.includes(b.id));
+  for (const b of birds) if (wanted(b)) spans.push(birdSpan(b));
+  for (const b of birds) if (b.story && !wanted(b) && Math.hypot(b.x - (p.x + 8), b.y - (p.y + TILE)) < 6 * TILE) spans.push(birdSpan(b));
+  return spans;
 }
 
 let currentPatch = -1;
@@ -1329,6 +1393,21 @@ function quickFade(change) {
     el.classList.remove("on");
     setTimeout(() => { el.classList.remove("quick"); quickFading = false; }, 200);
   }, 180);
+}
+
+let upCloseWanted = false;
+function upClose(on, fade = true) {
+  upCloseWanted = !!on;
+  if (upCloseWanted === upCloseShown) return;
+  const change = () => {
+    if (upCloseWanted === upCloseShown) return;
+    upCloseShown = upCloseWanted;
+    resize();
+    cameraGoal.x = null;
+  };
+  const zoomedOut = scaleFor(ZOOM_TILES[zoom] || ZOOM_TILES.normal) < scaleFor(ZOOM_TILES.normal);
+  if (!fade || !zoomedOut || !WORLD.garden || quickFading) change();
+  else quickFade(change);
 }
 
 function openCloseup(patchIndex) {
@@ -1377,6 +1456,7 @@ function update(dt, time) {
     Closeup.update(dt);
     UI.placeBubble(gameToScreen(...Object.values(Closeup.magpieHead()), false));
     showHusbandButton();
+    showCornerButtons();
     return;
   }
 
@@ -1467,6 +1547,7 @@ function update(dt, time) {
   if (WORLD.garden) River.update(dt, time, WORLD, view);
   Daylight.update(dt);
   Sky.update(dt);
+  Sky.keepAbove(speechBoxTop());                 // (while the magpie talks under the sky, what it talks about stays above the box)
   if (Sky.isOpen() !== skyShown) { skyShown = Sky.isOpen(); resize(); cameraGoal.x = null; }
   Dolls.update(dt);
   if (WORLD.garden) Wildlife.update(dt, time);
@@ -1490,6 +1571,7 @@ function update(dt, time) {
   const inPatch = patchHere >= 0 && patchHere !== lookedPatch && !isMoving() && closeupSeen && !player.sitting;
   const side = companion.x * TILE + 8 < p.x + 8 ? 1 : -1;
   showHusbandButton();
+  showCornerButtons();
   const quiet = !UI.bubbleShowing() && !(Speech && Speech.isOpen()) && !(Story && Story.busy());
   UI.showLook(inPatch && started && quiet ? gameToScreen(p.x + 8 + side * 15, p.y - TILE + 2) : null);
   const anchor = bubbleAt && time < bubbleAt.until ? bubbleAt : companionHeadTop();
@@ -1641,7 +1723,7 @@ const LABEL_ORIGIN = { above: "50% 100%", below: "50% 0", right: "0 50%", left: 
 function placeStarLabels() {
   const spots = Sky.isOpen() ? Sky.labelSpots(canvas.width, canvas.height) : [];
   const avoid = placeSkyNames();                  // (the names first: the words keep clear of them)
-  for (const id of ["sky-left", "sky-right", "menu-button", "back-button"]) {
+  for (const id of ["sky-left", "sky-right", "menu-button", "back-button", "music-button"]) {
     const el = document.getElementById(id);
     if (!el || el.classList.contains("hidden") || !el.getClientRects().length) continue;
     const r = el.getBoundingClientRect();
@@ -1731,7 +1813,7 @@ function placeSkyNames() {
     nameLabels.push(el);
   }
   const avoid = [];
-  for (const id of ["menu-button", "back-button"]) {
+  for (const id of ["menu-button", "back-button", "music-button"]) {
     const el = document.getElementById(id);
     if (!el || el.classList.contains("hidden") || !el.getClientRects().length) continue;
     const r = el.getBoundingClientRect();
@@ -2138,7 +2220,8 @@ window.STARLING_DEBUG = {
         if (c.x < 0 || c.y < 0 || c.x > window.innerWidth || c.y > window.innerHeight) continue;
         const d = Math.hypot(c.x - out.player.x, c.y - out.player.y);
         const key = b.id.replace(/-\d+$/, "");
-        if (!out.birds[key] || d < out.birds[key].d) out.birds[key] = { ...c, d: Math.round(d), name: b.name };
+        const cur = out.birds[key], story = !!b.story;
+        if (!cur || (story && !cur.story) || (story === !!cur.story && d < cur.d)) out.birds[key] = { ...c, d: Math.round(d), name: b.name, story };
       }
     }
     const box = document.getElementById("speech");

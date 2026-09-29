@@ -24,19 +24,34 @@ const UI = (() => {
     $("settings-done").textContent = UI_TEXT.done;
     $("settings-version").textContent = `${UI_TEXT.version} ${window.GAME_VERSION || ""}`;
 
-    $("zoom-label").textContent = UI_TEXT.zoom;
-    const zoomRow = $("zoom-choices");
-    for (const z of ["close", "normal", "far", "wide"]) {
-      const btn = document.createElement("button");
-      btn.textContent = UI_TEXT["zoom_" + z];
-      btn.dataset.zoom = z;
-      btn.addEventListener("click", () => {
-        onZoom(z);
-        zoomRow.querySelectorAll("button").forEach((b) => b.classList.toggle("chosen", b.dataset.zoom === z));
-      });
-      btn.classList.toggle("chosen", zoom() === z);
-      zoomRow.appendChild(btn);
-    }
+    const ZOOMS = ["close", "normal", "far", "wide"];
+    const zoomTo = (step) => {
+      const i = ZOOMS.indexOf(zoom()) + step;
+      if (i < 0 || i >= ZOOMS.length) return;
+      onZoom(ZOOMS[i]);
+      Sound.tap(step < 0 ? 820 : 620);
+      showZoomEnds();
+    };
+    const showZoomEnds = () => {
+      $("zoom-in-button").classList.toggle("at-end", zoom() === ZOOMS[0]);
+      $("zoom-out-button").classList.toggle("at-end", zoom() === ZOOMS[ZOOMS.length - 1]);
+    };
+    const tapped = (id, f) => $(id).addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); f(); });
+    $("zoom-in-button").appendChild(iconImage("zoomIn", 3));
+    $("zoom-in-button").setAttribute("aria-label", UI_TEXT.zoomIn);
+    $("zoom-out-button").appendChild(iconImage("zoomOut", 3));
+    $("zoom-out-button").setAttribute("aria-label", UI_TEXT.zoomOut);
+    tapped("zoom-in-button", () => zoomTo(-1));
+    tapped("zoom-out-button", () => zoomTo(1));
+    showZoomEnds();
+    const musicIcons = { on: iconImage("musicOn", 3), off: iconImage("musicOff", 3) };
+    const showMusic = () => {
+      const on = Sound.musicOn();
+      $("music-button").replaceChildren(on ? musicIcons.on : musicIcons.off);
+      $("music-button").setAttribute("aria-label", on ? UI_TEXT.musicOnLabel : UI_TEXT.musicOffLabel);
+    };
+    tapped("music-button", () => { Sound.start(); Sound.setMusicOn(!Sound.musicOn()); Sound.tap(700); showMusic(); });
+    showMusic();
     $("music-volume").value = Sound.settings.music * 100;
     $("sound-volume").value = Sound.settings.sound * 100;
     $("music-volume").addEventListener("input", (e) => Sound.setVolume("music", e.target.value / 100));
@@ -50,6 +65,11 @@ const UI = (() => {
     $("back-button").addEventListener("click", onBack);
     $("look-button").appendChild(iconImage("magnifier", 3));
     $("look-button").addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); onLookCloser(); });
+  }
+
+  function showCornerButtons(show, zoomable) {
+    $("music-button").classList.toggle("hidden", !show);
+    for (const id of ["zoom-in-button", "zoom-out-button"]) $(id).classList.toggle("hidden", !(show && zoomable));
   }
 
   let bubbleTimer = null, bubbleWordTimer = null, bubbleAnchor = null;
@@ -95,7 +115,7 @@ const UI = (() => {
     const w = el.offsetWidth, h = el.offsetHeight;
     const rightEdge = () => {
       let r = window.innerWidth - 8;
-      for (const b of document.querySelectorAll("#menu-button, .side-button")) {
+      for (const b of document.querySelectorAll("#menu-button, .side-button, .corner-button")) {
         if (b.classList.contains("hidden") || !b.getClientRects().length) continue;
         const q = b.getBoundingClientRect();
         if (y < q.bottom + 4 && y + h > q.top - 4) r = Math.min(r, q.left - 6);
@@ -159,5 +179,5 @@ const UI = (() => {
 
   return {
     openSettings: () => $("settings").classList.remove("hidden"),
-    setup, say, hideBubble, placeBubble, tinySay, showBack, showLook, bubbleShowing, bubbleAnchor: () => bubbleAnchor };
+    setup, say, hideBubble, placeBubble, tinySay, showBack, showLook, showCornerButtons, bubbleShowing, bubbleAnchor: () => bubbleAnchor };
 })();

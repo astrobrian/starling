@@ -289,12 +289,12 @@ const Quirks = (() => {
   MOMENTS.lift = {
     where: () => {
       if (!WORLD.garden || !stopped()) return null;
-      const tree = WORLD.things.find((t) => t.type === "persimmonTree");
+      const tree = WORLD.things.find((t) => t.type === "plumTree");
       if (!tree || player.ny !== tree.y + 1 || player.nx < tree.x - 1 || player.nx > tree.x + tree.w) return null;
       const s = thingSprite(tree, 1), left = tree.footX - s.ax, top = tree.footY - s.ay, f = herFeet();
       const head = { x: f.x, y: f.p.y - TILE + 8 - QUIRK_FIT.lift };
       let fruit = null;
-      for (const [fx, fy] of persimmonFruits(tree.variant)) {
+      for (const [fx, fy] of plumFruits(tree.variant)) {
         const d = Math.hypot(left + fx - head.x, top + fy - head.y);
         if (d < 26 && (!fruit || d < fruit.d)) fruit = { x: left + fx, y: top + fy, d };
       }
@@ -482,7 +482,7 @@ const Quirks = (() => {
     him: (q) => (q.phase === "pat" ? HIS().pat[-q.spot.side][Math.floor((q.t - q.at) / 0.24) % 2] : null),
   };
 
-  const TREES = { bigTree: "leaf", persimmonTree: "leafGold", willow: "willow", tree: "leaf" };
+  const TREES = { bigTree: "leaf", persimmonTree: "leafGold", plumTree: "hedge", willow: "willow", tree: "leaf" };
   MOMENTS.leaf = {
     where: () => {
       if (!WORLD.garden || !stopped() || player.facing !== "down") return null;
@@ -573,6 +573,7 @@ const Quirks = (() => {
     H.pose = null; H.moving = false;
     const m = MOMENTS[name];
     if (m.begin) m.begin(cur);
+    if (typeof upClose === "function") upClose(true);      // (a tender moment, up close: js/main.js)
   }
 
   function maybe(dt) {
@@ -624,6 +625,7 @@ const Quirks = (() => {
     if (!m.bench && H.state === "together") { H.rejoin = true; H.rejoinHappy = false; }
     if (early) clearWords();
     happened(q.name);
+    if (typeof upClose === "function") upClose(false);     // (and back out again)
   }
   const stop = () => finish(true);
 

@@ -11,6 +11,15 @@ window.UI_TEXT = {
   no: "No",
   story: "Story",
   credits: "Credits",
+  fullScreen: "Full screen",
+  fullScreenKorean: "전체 화면",
+  fullScreenSteps: [
+    ["In Safari, tap Share (a square with an arrow). It may be in the ••• menu.", "사파리에서 공유(화살표가 있는 네모)를 누르세요. ••• 메뉴 안에 있을 수도 있어요."],
+    ["Tap \"Add to Home Screen\", then \"Add\".", "'홈 화면에 추가'를 누르고, '추가'를 누르세요."],
+    ["Open Starling from your Home Screen: full screen!", "홈 화면에서 Starling을 열면 화면 가득 보여요!"],
+  ],
+  fullScreenNote: ["Your stars stay in Safari. To take them along: Settings, Backup, Save here; then Load in the Home Screen game.",
+    "별은 사파리에 남아 있어요. 옮기려면: 여기서 설정 → 백업 → 저장, 그다음 홈 화면 게임에서 불러오기."],
   madeByFor: "Made with love by {by} for {for}.",
   madeWithLove: "Made with love.",                // until DEDICATION (below) has the names
   thanks: "Thank you for playing!",
@@ -77,11 +86,10 @@ window.UI_TEXT = {
   music: "Music",
   sounds: "Sounds",
   done: "Done",
-  zoom: "Zoom",
-  zoom_close: "Close",
-  zoom_normal: "Normal",
-  zoom_far: "Far",
-  zoom_wide: "Wide",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
+  musicOnLabel: "Music on",
+  musicOffLabel: "Music off",
   callHusband: "Call husband",   // the side button: the magpie fetches him
   byeForNow: "See you later",      // the same button while he's with her
   visitHusband: "Visit husband", // the second side button: off to the observatory

@@ -78,7 +78,7 @@ DAYS[5] = {
         "d5_run",
         { near: "bigTree", reach: 3.2, stop: 0, hint: "d5_run", tapWalks: [...D5_PARROTBILLS, "magpie"] },
         { scene: [...D5_PARROTBILLS.map((bird, i) => ({ bird, flyTo: D5_ROW(i), range: 0.3 })), { wait: 0.8 }] },
-        { scene: [{ magpie: "joy" }, { wait: 0.4 }] },
+        { moment: "lookUpDown", up: "bigTree", down: D5_PARROTBILLS },
         "d5_big",
         { learn: ["run", "big"] },
       ],
@@ -142,6 +142,7 @@ DAYS[5] = {
     ],
     card: "theEnd",
     chapterEnd: true,
+    thought: "crowFeather",
   },
 };
 }

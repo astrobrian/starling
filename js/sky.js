@@ -18,6 +18,8 @@ const Sky = (() => {
   let press = null;              // a finger on the sky: { id, x0, y0, pan0, moved }
   let whisperAt = 0, whisperI = 0, sparks = [], hideBubbleDone = false;
   let startOn = null;            // the constellation the view opens on
+  let focus = null;              // what the view rests on now: a constellation's id, "@bridge" or "@moon"
+  let lift = 0, liftGoal = 0;    // how far the sky is moved up (game pixels), so what the magpie talks about stays above the speech box
   const TILT_SECONDS = 1.6, SKY_W = 1480;
   const EDGE = 26;               // figures keep this far from the sky's ends (game pixels: clear of the notch)
   let L = null;                  // the layout, for this screen size
@@ -321,7 +323,7 @@ const Sky = (() => {
     if (porch) forgetTogether();
     open = true;
     tiltGoal = 1;
-    clock = 0; labels = []; tour = []; press = null; panGoal = null; whisperI = 0; sparks = []; hideBubbleDone = false; reviewStops = null;
+    clock = 0; labels = []; tour = []; press = null; panGoal = null; whisperI = 0; sparks = []; hideBubbleDone = false; reviewStops = null; pace = 1;
     whisperAt = TILT_SECONDS + 0.4;
     skyDay = day || (typeof State !== "undefined" && State.get().day) || 1;
     moonInfo = typeof Moon !== "undefined" ? Moon.forDay(skyDay) : null;
@@ -339,16 +341,18 @@ const Sky = (() => {
       g.words.push(w);
     }
     groups.sort((a, b) => atX(a.id) - atX(b.id));
+    const evening = (window.DAY_FRAME || {}).evening || {};
+    const every = evening.starEvery || 0.75, rest = evening.groupRest !== undefined ? evening.groupRest : 0.7;
     let t = TILT_SECONDS + 0.3;
     groups.forEach((g, gi) => {
       const secs = gi === 0 ? 0 : glideSecs(atX(groups[gi - 1].id), atX(g.id));
       tour.push({ id: g.id, at: gi === 0 ? -10 : t, secs });
       const arrive = t + secs;
       g.words.forEach((w, i) => {
-        born[w] = arrive + 0.3 + i * 0.75;
+        born[w] = arrive + 0.3 + i * every;
         labels.push({ word: w, from: born[w], until: born[w] + 1.5 });
       });
-      t = arrive + 0.3 + g.words.length * 0.75 + 0.7;
+      t = arrive + 0.3 + g.words.length * every + rest;
     });
     const isNew = (e) => !review && (e.fresh !== undefined ? !!e.fresh : (e.day || 0) === skyDay);
     bridgeBorn = { birds: bridge.birds.map((e) => (isNew(e) ? null : -10)), friends: bridge.friends.map((e) => (isNew(e) ? null : -10)) };
@@ -360,10 +364,10 @@ const Sky = (() => {
       tour.push({ id: "@bridge", at: first ? -10 : t, secs });
       const arrive = t + secs;
       tonight.forEach(([k, i], j) => {
-        bridgeBorn[k][i] = arrive + 0.3 + j * 0.75;
+        bridgeBorn[k][i] = arrive + 0.3 + j * every;
         labels.push({ bridge: { kind: k, i }, from: bridgeBorn[k][i], until: bridgeBorn[k][i] + 1.5 });
       });
-      t = arrive + 0.3 + tonight.length * 0.75 + 0.7;
+      t = arrive + 0.3 + tonight.length * every + rest;
     }
     tourEnd = tour.length ? t - 0.3 : TILT_SECONDS + 0.5;
     promise = review && !Object.keys(learned).length ? ((window.CONSTELLATIONS || [])[0] || { words: [] }).words : [];
@@ -374,6 +378,8 @@ const Sky = (() => {
       reviewStops = ids;
       startOn = ids[0] || ((window.CONSTELLATIONS || [])[0] || {}).id;
     } else startOn = tour[0] ? tour[0].id : null;
+    focus = review ? null : tour.length ? tour[tour.length - 1].id : startOn;      // (where the nightly visit comes to rest)
+    lift = liftGoal = 0;
     return new Promise((done) => { onClose = done; });
   }
   const glideSecs = (a, b) => 0.8 + ((Math.abs(a - b) * SKY_W) / Math.max(1, (L && L.w) || 422)) * 0.5;
@@ -395,12 +401,14 @@ const Sky = (() => {
   }
 
   function update(dt) {
-    clock += dt;
+    if (pace > 1 && settled()) pace = 1;
+    clock += dt * pace;
     const step = dt / TILT_SECONDS;
     tilt = tiltGoal > tilt ? Math.min(tiltGoal, tilt + step) : Math.max(tiltGoal, tilt - step);
     for (const b of [...Object.values(born), ...bridgeBorn.birds, ...bridgeBorn.friends]) if (b > 0 && b <= clock && b > clock - dt) Sound.twinkle();
     labels = labels.filter((l) => l.until > clock);
     sparks = sparks.filter((s) => clock - s.at < 0.45);
+    lift += (liftGoal - lift) * Math.min(1, dt * 8);
     if (review && !hideBubbleDone && tilt > 0) { hideBubbleDone = true; UI.hideBubble(); }
     if (open && tiltGoal === 0 && tilt === 0) {
       open = false;
@@ -410,6 +418,20 @@ const Sky = (() => {
   }
 
   const amount = () => tilt * tilt * (3 - 2 * tilt);
+
+  function keepAbove(boxTop) {
+    liftGoal = 0;
+    if (!open || review || boxTop === null || boxTop === undefined || !L) return;
+    const span = focusSpan(L);
+    if (span) liftGoal = Math.max(0, Math.min(span[1] + 10 * CUE - boxTop, span[0] - 12 * CUE));
+  }
+  function focusSpan(lay) {
+    if (focus === "@bridge") return lay.bridge ? [lay.bridge.topY - 6 * CUE, lay.bridge.footY + 6 * CUE] : null;
+    if (focus === "@moon") { const m = moonSpot(lay, moonInfo); return m ? [m.y - m.r, m.y + m.r] : null; }
+    const c = lay.con[focus];
+    return c && c.stars.length ? [c.box.t, c.box.b] : null;
+  }
+  const shiftY = (h) => Math.round(amount() * h) - h - Math.round(lift);
 
   const clampPan = (x, lay) => Math.max(0, Math.min(lay.skyW - lay.w, x));
   const panOf = (stop, lay) => (stop.x !== undefined ? clampPan(stop.x, lay)
@@ -556,9 +578,9 @@ const Sky = (() => {
   function draw(ctx, w, h, time) {
     const k = amount();
     if (k <= 0) return;
-    const top = Math.round(k * h) - h;
+    const top = Math.round(k * h) - h, up = Math.round(lift);
     ctx.save();
-    ctx.translate(0, top);
+    ctx.translate(0, top - up);
     if (dayMode) { drawDaySky(ctx, w, h, time); ctx.restore(); return; }
     const lay = layout(w, h);
     updatePan(lay);
@@ -624,9 +646,11 @@ const Sky = (() => {
     for (const s of sparks) {
       const r = (2 + (clock - s.at) * 14) * CUE;
       ctx.fillStyle = PALETTE.starBright;
-      for (let i = 0; i < 8; i++) ctx.fillRect(Math.round(s.x + Math.cos(i * 0.785) * r), Math.round(s.y - top + Math.sin(i * 0.785) * r), CUE, CUE);
+      for (let i = 0; i < 8; i++) ctx.fillRect(Math.round(s.x + Math.cos(i * 0.785) * r), Math.round(s.y - top + up + Math.sin(i * 0.785) * r), CUE, CUE);
     }
     drawTreeline(ctx, w, h, PALETTE.nightTrees);
+    if (up > 0) { ctx.fillStyle = PALETTE.nightTrees; ctx.fillRect(0, h, w, up); }
+    ctx.translate(0, up);                      // (the two of them stay at the bottom of the screen)
     if (review) {
       const us = together(), x0 = PAIR_X * CUE, y0 = h - us.height - 13;
       for (let x = -20; x < us.width + 20; x++) {
@@ -867,7 +891,7 @@ const Sky = (() => {
       if (!s) return null;
       const r = s.bright || CUE > 1 ? 9 : 5;                   // (half the star, and a little)
       return { text: l.unknown ? UI_TEXT.notYet : pictureOf(l.word) + l.word, sub: l.quiet || l.unknown || !review ? "" : learnedNote(l.word), x: s.x - pan, y: s.y - r, sx: s.x - pan, sy: s.y, r, unknown: !!l.unknown };
-    }).filter(Boolean);
+    }).filter(Boolean).map((q) => (lift >= 0.5 ? { ...q, y: q.y - Math.round(lift), sy: q.sy - Math.round(lift) } : q));      // (with the sky, moved up over the speech box)
   }
 
   function nameSpots(w, h) {
@@ -887,7 +911,21 @@ const Sky = (() => {
     return { left: more(-1), right: more(1) };
   }
 
-  function pressAt(sx, sy, id) { press = { id, x0: sx, y0: sy, pan0: pan, moved: false }; tour = []; reviewStops = null; }
+  function pressAt(sx, sy, id) {
+    press = { id, x0: sx, y0: sy, pan0: pan, moved: false };
+    if (porch) { hurry(); return; }              // (from the porch the view glides on by itself)
+    tour = []; reviewStops = null;
+  }
+  let pace = 1;
+  function hurry() {
+    if (!porch || settled() || pace > 1) return;
+    pace = (((window.DAY_FRAME || {}).evening || {}).hurry) || 3;
+    let out = false;
+    for (const w of Object.keys(born)) if (born[w] > clock) { born[w] = clock; out = true; }
+    for (const k of ["birds", "friends"]) bridgeBorn[k] = bridgeBorn[k].map((b) => (b !== null && b > clock ? ((out = true), clock) : b));
+    labels = labels.filter((l) => l.from <= clock);        // (the words still to come don't pop up one by one)
+    if (out) Sound.twinkle();
+  }
   function dragTo(sx, sy, id, perPoint) {
     if (!press || press.id !== id || !review || !L) return;
     if (Math.abs(sx - press.x0) > 8 * perPoint) press.moved = true;
@@ -906,11 +944,24 @@ const Sky = (() => {
     const m = what === "@moon" ? moonSpot(L, moonInfo) : null;
     const x = m ? m.x : what === "@bridge" ? L.bridge && L.bridge.cx : L.con[what] && L.con[what].cx;
     if (x === undefined || x === null) return;
+    focus = what;
     reviewStops = null;
     glideUntil = clock + 1.3;
     tour = [{ x: pan, at: -10 }, { x: clampPan(x - L.w / 2, L), from: pan, at: clock, secs: 0.9 }];
     labels = []; whisperAt = clock + 1.6;
   }
+  function lookAtNew() {
+    if (!L || !open) return false;
+    const fresh = Object.keys(born).filter((w) => born[w] > 0 && L.star[w]);     // (the stars from before tonight are at -10)
+    if (!fresh.length || fresh.some((w) => L.star[w].x - pan > 10 && L.star[w].x - pan < L.w - 10)) return false;
+    const count = {};
+    for (const w of fresh) { const id = conOf(w); if (id) count[id] = (count[id] || 0) + 1; }
+    const most = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    if (!most) return false;
+    lookAt(most);
+    return true;
+  }
+
   function nudge(dir) {
     if (!review || !L) return;
     const to = clampPan(pan + dir * L.w * 0.6, L);
@@ -922,7 +973,7 @@ const Sky = (() => {
 
   function starAt(x, y, reach, w, h) {
     const lay = layout(w, h);
-    y -= Math.round(amount() * h) - h;
+    y -= shiftY(h);
     let best = null;
     const consider = (item, sx, sy) => { const d = Math.hypot(sx - x, sy - y); if (d <= reach && (!best || d < best.d)) best = { ...item, d }; };
     for (const c of lay.cons) if (started(c)) for (const s of c.stars) consider({ word: s.word, lit: lit(s.word) }, s.x - pan, s.y);
@@ -983,14 +1034,14 @@ const Sky = (() => {
 
   return {
     show: (...a) => { forgetTogether(); return show(...a); },
-    close, update, draw, tap, starAt, amount, labelSpots, nameSpots, edges, settled, openCard, pairBox,
+    close, update, draw, tap, starAt, amount, labelSpots, nameSpots, edges, settled, openCard, pairBox, keepAbove,
     gliding: () => open && (clock < glideUntil || tourMoving() || !!press),
-    press: pressAt, drag: dragTo, release: releaseAt, cancelPress, nudge, lookAt,
+    press: pressAt, drag: dragTo, release: releaseAt, cancelPress, nudge, lookAt, lookAtNew,
     moon: () => (open ? moonInfo : null),
     isOpen: () => open, lookingUp: () => open && tilt > 0.5, reviewing: () => open && review,
     visibleStars(w, h) {
       if (!L || !open) return [];
-      const top = Math.round(amount() * h) - h, out = [];
+      const top = shiftY(h), out = [];
       for (const c of L.cons) if (started(c)) for (const s of c.stars) if (s.x - pan > 0 && s.x - pan < w) out.push({ word: s.word, lit: lit(s.word), x: s.x - pan, y: s.y + top });
       for (const r of L.real) if (r.x - pan > 0 && r.x - pan < w) out.push({ real: r.id, lit: true, big: true, x: r.x - pan, y: r.y + top });
       for (const s of bridgeSpots(L)) if (s.x - pan > 0 && s.x - pan < w) out.push({ bridge: s.e.species, lit: true, x: s.x - pan, y: s.y + top });

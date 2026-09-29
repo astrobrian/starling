@@ -106,7 +106,7 @@ const Closeup = (() => {
     });
   }
 
-  const BIG = { sunflower: 13, cosmos: 11, tulip: 10, rose: 10, daisy: 10 };
+  const BIG = { sunflower: 13, cosmos: 11, tulip: 10, zinnia: 10, rose: 10, daisy: 10, balsam: 10, mossRose: 9 };
 
   function bigStar() {
     return once("bigStar", () => {
@@ -124,7 +124,7 @@ const Closeup = (() => {
   }
 
   function build(patchIndex, W, H, opts = {}) {
-    const patch = FLOWER_PATCHES[patchIndex] || { flowers: [["daisy", "snow"], ["tulip", "petalPink"]] };
+    const patch = FLOWER_PATCHES[patchIndex] || { flowers: [["daisy", "snow"], ["zinnia", "petalPink"]] };
     const seed = patchIndex * 31 + 7;
 
     const bg = new PixelBuffer(W, H);

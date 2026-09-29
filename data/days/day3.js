@@ -24,10 +24,12 @@ DAYS[3] = {
     ],
   },
 
+  again: ["d3_come_out"],
+
   out: [
     { outside: { alone: true } },
     { magpie: { sit: { thing: "persimmonTree", dx: 24, dy: -25 }, sortAfter: "persimmonTree", face: "left" } },
-    { near: { thing: "persimmonTree" }, reach: 3.5, stop: 0, hint: "d3_come_out", tapWalks: ["magpie"], guide: true },
+    { near: { thing: "persimmonTree" }, reach: 3.5, stop: 0, hint: "d3_come_out", tapWalks: ["magpie"], guide: { thing: "persimmonTree", dx: 24, dy: -40 } },
     { scene: [{ magpie: "joy" }, { emote: "heart" }, { wait: 0.4 }] },
     { magpie: "follow" },
   ],
@@ -54,10 +56,10 @@ DAYS[3] = {
         "d3_seeds",
         { fetch: "seeds", from: "seedSack", guide: true, hint: "d3_seeds", learn: ["seed"] },
         { give: "seeds", to: "birdFeeder", guide: true, hint: "d3_back", learn: ["feeder", "empty"] },
-        { moment: "feederFill", bird: "tit", flock: [{ id: "sparrow", species: "sparrow" }, { species: "tit", count: 1 }, { species: "sparrow", count: 1 }, { species: "tit", count: 1 }] },
+        { moment: "feederFill", bird: "tit", flock: [{ id: "sparrow", species: "sparrow" }, { species: "tit", count: 1 }, { species: "sparrow", count: 1 }, { species: "tit", count: 1 }], stepBack: [0, 1] },
         { say: "d3_tit_yum", learn: ["full"] },
         { friend: "tit" },
-        { bird: "sparrow", celebrate: true },
+        { bird: "sparrow", act: "fanTail", seconds: 3.6, wait: false, emote: "heart" },
         "d3_sparrow",
         { scene: [{ magpie: { perch: { thing: "birdFeeder", dx: -20, dy: 9 } } }, { wait: 0.8 }] },
         "d3_eat",

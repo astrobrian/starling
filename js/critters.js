@@ -146,14 +146,27 @@ function makeCritters(world) {
       ctx.drawImage(smallBee(frame), Math.round(b.x - 4), Math.round(b.y - 4 + bob));
     }
     for (const f of flies) {
-      const beat = f.landed ? (Math.sin(time * 1.5 + f.seed) > 0.3 ? 1 : 0) : [0, 1, 2, 1][Math.floor(time * 10 + f.seed) % 4];
-      const lift = f.landed ? 0 : (beat === 2 ? -1 : 0) + Math.round(Math.sin(time * 3 + f.seed) * 2.5);
-      const zig = f.landed ? 0 : Math.round(Math.sin(time * 5.3 + f.seed * 3) * 1.5);
-      ctx.drawImage(smallButterfly(f.color, beat), Math.round(f.x - 5 + zig), Math.round(f.y - 4 + lift));
+      const d = flyDrawn(f, time);
+      ctx.drawImage(d.sprite, d.x, d.y);
     }
   }
 
-  return { update, draw, bees, flies };
+  function flyDrawn(f, time) {
+    const beat = f.landed ? (Math.sin(time * 1.5 + f.seed) > 0.3 ? 1 : 0) : [0, 1, 2, 1][Math.floor(time * 10 + f.seed) % 4];
+    const lift = f.landed ? 0 : (beat === 2 ? -1 : 0) + Math.round(Math.sin(time * 3 + f.seed) * 2.5);
+    const zig = f.landed ? 0 : Math.round(Math.sin(time * 5.3 + f.seed * 3) * 1.5);
+    return { sprite: smallButterfly(f.color, beat), x: Math.round(f.x - 5 + zig), y: Math.round(f.y - 4 + lift) };
+  }
+
+  function flyAt(x, y, time) {
+    for (let i = flies.length - 1; i >= 0; i--) {
+      const d = flyDrawn(flies[i], time);
+      if (isSolid(d.sprite, x - d.x, y - d.y)) return flies[i];
+    }
+    return null;
+  }
+
+  return { update, draw, bees, flies, flyAt };
 }
 
 function puff(ctx, x0, y0, d) {

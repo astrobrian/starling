@@ -80,6 +80,7 @@ const SONGBIRD_POSES = {
   pant2: { open: 1.1, wing: "ajar", throat: true },       // ...and its throat fluttering (a pixel fuller)
   wings: { wing: "half", tail: -0.5 },                   // wings lifted: a proud flap, showing off
   fan: { wing: "half", open: 1.1, tail: -0.5 },          // fanning itself with a wing, panting
+  fanTail: { tail: 3, fanTail: true, head: [-0.3, -0.5], tilt: -0.2 },   // showing off its tail: raised and spread in a fan, head up
 };
 
 function turned(cx, cy, dx, dy, angle) {
@@ -214,10 +215,10 @@ const BIRD_SHAPES = {
     const beakLen = bird.beakLen || 2.4, beakH = bird.beakH || 2.4, legLen = bird.legLen || 1.6;
     const flying = P.wing === "up";
     const legs = P.legs === undefined ? legLen : P.legs === "long" ? legLen + 1.5 : P.legs;
-    const ox = Math.max(0, Math.ceil(L + 4.5 - 10), P.water ? Math.ceil(rx * 2.5 - 9) : 0);
+    const ox = Math.max(0, Math.ceil(L + 4.5 - 10), P.water ? Math.ceil(rx * 2.5 - 9) : 0, P.fanTail ? Math.ceil(L + 3.2 + rx * 0.55 - 9) : 0);
     const [dhx, dhy] = P.head || [0, 0];
     const by0 = +(1.4 * hr + 1.1 * ry0).toFixed(1);                  // (the magpie: 12.6)
-    const top = Math.max(0, Math.ceil(hr + (bird.crest ? 3.8 : 0) - (by0 - ry0 * 1.22 + dhy)));
+    const top = Math.max(0, Math.ceil(hr + (bird.crest ? 3.8 : 0) - (by0 - ry0 * 1.22 + dhy)), P.fanTail ? Math.ceil(L + 4.7 - by0) : 0);
     const bx = ox + 10, by = by0 + top;
     const hx = bx + rx0 * 0.77 + dhx, hy = by - ry0 * 1.22 + dhy;
     const water = P.water ? Math.round(by + ry * 0.2) : null;
@@ -249,6 +250,18 @@ const BIRD_SHAPES = {
     } else if (P.wing === "low") {
       wing = [[bx - rx * 0.5, by - ry * 0.5], [bx + rx * 0.3, by - ry * 0.45], [bx - rx * 0.9, by + ry * 0.15], [bx - rx * 2.3, by + ry * 0.1], [bx - rx * 2.0, by - ry * 0.3]];
       tip = [[bx - rx * 1.6, by - ry * 0.4], [bx - rx * 1.7, by + ry * 0.15], [bx - rx * 2.45, by + ry * 0.1]];
+    }
+
+    if (P.fanTail) {
+      const cx = bx - rx * 0.55, cy = by - 0.5, R = L + 3.2, a0 = Math.PI * 1.04, a1 = Math.PI * 1.46;
+      const rim = [];
+      for (let i = 0; i <= 10; i++) { const a = a0 + ((a1 - a0) * i) / 10; rim.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]); }
+      buf.polygon([[cx + 0.5, cy + 1.2], ...rim], bird.tail.color, { clip });
+      for (let i = 1; i < 4; i++) {
+        const a = a0 + ((a1 - a0) * i) / 4;
+        buf.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (R - 0.7), cy + Math.sin(a) * (R - 0.7), 1, rampFor(bird.tail.color)[2], { onlyFilled: true, clip });
+        buf.set(Math.floor(cx + Math.cos(a) * (R - 0.4)), Math.floor(cy + Math.sin(a) * (R - 0.4)), null);      // (a notch in the rim between two feathers)
+      }
     }
 
     const body = [bx, by, rx, ry];

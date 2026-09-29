@@ -373,13 +373,15 @@ const Husband = (() => {
     const goal = { x: view.x + view.w * 0.8, y: view.y - TILE * 2 };
     const her = { x: player.nx, y: player.ny };
     let best = null;
+    const consider = (x, y) => { const d = Math.hypot(x * TILE - goal.x, y * TILE - goal.y); if (!best || d < best.d) best = { x, y, d }; };
     const x0 = Math.max(0, Math.floor(view.x / TILE) - 2), x1 = Math.min(MAP_W - 1, Math.floor((view.x + view.w) / TILE) + 2);
     const y0 = Math.max(0, Math.floor(view.y / TILE) - 3), y1 = Math.min(MAP_H - 1, Math.floor((view.y + view.h) / TILE) + 2);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y < Math.floor(view.y / TILE); y++) for (let x = x0; x <= x1; x++) if (isWalkable(x, y)) consider(x, y);
+    for (let y = 0; y < MAP_H && !best && !WORLD.indoors; y++) for (let x = 0; x < MAP_W; x++) if (isWalkable(x, y) && WORLD.tile(x, y) === "=") consider(x, y);
+    if (!best) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const inView = x * TILE + 16 > view.x && x * TILE < view.x + view.w && y * TILE + 16 > view.y && y * TILE < view.y + view.h;
       if (inView || !isWalkable(x, y) || (y > y0 && y < y1 && x > x0 && x < x1)) continue;       // just outside the view
-      const d = Math.hypot(x * TILE - goal.x, y * TILE - goal.y);
-      if (!best || d < best.d) best = { x, y, d };
+      consider(x, y);
     }
     if (!best) return null;
     const path = findPath(best, her, MAP_W, MAP_H, isWalkable, stepCost);

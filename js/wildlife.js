@@ -284,7 +284,7 @@ const Wildlife = (() => {
     },
   };
 
-  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2, pant: 0, fan: 1.8, flap: 1.2, shake: 0.56 };
+  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2, pant: 0, fan: 1.8, flap: 1.2, shake: 0.56, look: 0.7, lookUp: 0.9, lookDown: 0.8, fanTail: 2.4 };
   const HOP_TIME = { jump: 0.55, dance: 0.4 };
   const MELODY = [1, 1.12, 1.26, 1.12, 1.5, 1.33, 1.26];
 
@@ -345,6 +345,14 @@ const Wildlife = (() => {
       const turn = Math.floor(t / 0.14);
       if (a.turn !== undefined && turn !== a.turn) flip = true;
       a.turn = turn;
+    } else if (a.name === "lookUp") {
+      pose = "tipUp";
+    } else if (a.name === "lookDown") {
+      pose = "peck";
+    } else if (a.name === "fanTail") {
+      const k = t % 1.2;
+      pose = k < 0.95 ? "fanTail" : "stand";
+      lift = k < 0.2 ? Math.sin((k / 0.2) * Math.PI) * 2 : 0;
     }
     a.done = t >= a.dur;
     return { pose, lift, flip };
@@ -979,7 +987,7 @@ const Wildlife = (() => {
   function clear() { birds.forEach(finishAct); birds = []; hideouts.clear(); }
 
   return {
-    add, get, remove, schedule, update, items, drawOverlays, drawThoughtAt, thoughtSpot, birdAt, wantedAt, greet, celebrate, showEmote,
+    add, get, remove, schedule, update, items, drawOverlays, drawThoughtAt, thoughtSpot, thoughtBubbles, birdAt, wantedAt, greet, celebrate, showEmote,
     flyTo, leave, hopTo, headTop, clear, all: () => birds, knock,
     act, stop: finishAct, hop, runTo, hideIn, popOut, rustle, roost,
     newAct, stepAct, drawCues,

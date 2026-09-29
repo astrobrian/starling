@@ -4,10 +4,6 @@ window.FLOWERS = {
     name: "daisy", shape: "daisy", size: "small", petals: 8, center: "beeYellow",
     colors: ["snow", "petalPink", "butter"],
   },
-  tulip: {
-    name: "tulip", shape: "tulip", size: "small", petals: 3, center: "beeYellow",
-    colors: ["scarlet", "petalPink", "butter", "lilac", "snow"],
-  },
   rose: {
     name: "rose", shape: "rose", size: "small", petals: 5, center: "beeYellow",
     colors: ["scarlet", "petalPink", "snow", "butter"],
@@ -27,7 +23,7 @@ window.FLOWERS = {
   },
   zinnia: {
     name: "zinnia", korean: "백일홍", shape: "zinnia", size: "small", petals: 12, center: "chestnut",
-    colors: ["scarlet", "butter", "petalPink", "snow"], sown: true,
+    colors: ["scarlet", "butter", "petalPink", "snow"], sown: true, wild: true,
   },
   mossRose: {
     name: "moss rose", korean: "채송화", shape: "mossRose", size: "small", petals: 5, center: "beeYellow",

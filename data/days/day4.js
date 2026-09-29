@@ -9,7 +9,6 @@ DAYS[4] = {
   weather: "hot",
 
   morning: {
-    world: { during: [{ place: "room", add: { type: "breakfast", x: 8, y: 3, variant: 16 } }] },
     steps: [
       { scene: [{ act: "pant", on: "magpie" }, { emote: "heat" }, { thought: "sun" }, { wait: 0.4 }] },
       "good_morning",
@@ -31,14 +30,25 @@ DAYS[4] = {
     ],
   },
 
+  again: [
+    { when: { notDone: "d4_share" }, steps: [
+      { guide: { thing: "breakfast", place: "room", dy: -14 }, talking: true },
+      "d4_breakfast",
+      { guide: null },
+      { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, guide: true, hint: "d4_breakfast" },
+    ] },
+  ],
+
   favors: [
     {
       id: "share",
       noon: true,
-      world: { after: [{ today: true, add: { type: "breakfast", x: 11, y: 6, variant: 15 } }] },
+      world: {
+        during: [{ place: "room", add: { type: "breakfast", x: 8, y: 3, variant: 16 }, unlessHolding: "tray" }],
+        after: [{ today: true, add: { type: "breakfast", x: 11, y: 6, variant: 15 } }],
+      },
       steps: [
         { when: { holding: "tray" }, else: [
-          { world: [{ place: "room", add: { type: "breakfast", x: 8, y: 3, variant: 16 } }] },
           { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, guide: true, hint: "d4_breakfast" },
         ] },
         { give: "tray", to: D4_BENCH, guide: { ...D4_BENCH, dy: -16 }, hint: "d4_breakfast" },
@@ -91,6 +101,7 @@ DAYS[4] = {
 
     {
       id: "bath",
+      breath: true,
       birds: [
         { id: "dove1", species: "dove", at: [6.6, 3.2], borrow: true },
         { id: "dove2", species: "dove", at: [9.4, 3.2], borrow: true },

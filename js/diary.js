@@ -162,7 +162,7 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
   const MAGPIE = BIRDS.magpie;
   const pollenBulbul = { ...BIRDS.bulbul, pollen: true };
 
-  const firstPatch = ((window.FLOWER_PATCHES && FLOWER_PATCHES[0] && FLOWER_PATCHES[0].flowers) || [["daisy", "snow"], ["tulip", "petalPink"]])
+  const firstPatch = ((window.FLOWER_PATCHES && FLOWER_PATCHES[0] && FLOWER_PATCHES[0].flowers) || [["daisy", "snow"], ["zinnia", "petalPink"]])
     .filter(([sp]) => FLOWERS[sp] && FLOWERS[sp].size !== "tall");
   const kindOf = (i) => firstPatch[i % firstPatch.length];
   function d1(g, t, opts = {}) {
@@ -206,8 +206,8 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     drawHer(g, 4, 83, "right", opts.doll, (t % 3.9) < 0.14);
   }
 
-  const COLORS4 = [["tulip", "scarlet"], ["daisy", "butter"], ["rose", "petalPink"], ["tulip", "snow"],
-    ["rose", "scarlet"], ["tulip", "butter"], ["daisy", "petalPink"], ["daisy", "snow"]];
+  const COLORS4 = [["zinnia", "scarlet"], ["daisy", "butter"], ["rose", "petalPink"], ["zinnia", "snow"],
+    ["rose", "scarlet"], ["zinnia", "butter"], ["daisy", "petalPink"], ["daisy", "snow"]];
   function d3(g, t) {
     back(g, "day", () => sun(g, t));
     [[12, 52], [28, 50], [84, 50], [100, 53], [20, 64], [92, 64]].forEach(([x, y], i) => flower(g, ...COLORS4[i % 8], x, y, i, t));
@@ -241,7 +241,7 @@ function makeDiaryPictures(W = DIARY_PICTURE.w, H = DIARY_PICTURE.h) {
     shadow(g, x, y - 1, 9, 1.8);
     shadow(g, 16, 79, 6);
     drawProp(g, "wateringCan", 0, 16, 80);                        // (she filled the bath with it)
-    [["tulip", "scarlet", 88, 80], ["daisy", "snow", 101, 77], ["rose", "petalPink", 106, 86], ["daisy", "butter", 30, 88]]
+    [["zinnia", "scarlet", 88, 80], ["daisy", "snow", 101, 77], ["rose", "petalPink", 106, 86], ["daisy", "butter", 30, 88]]
       .forEach(([sp, col, fx, fy], i) => flower(g, sp, col, fx, fy, i + 2, t));
     g.drawImage(bath.canvas, bx, by);
     const flutter = Math.floor(t * 5) % 2;

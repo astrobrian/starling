@@ -156,7 +156,7 @@ const Favors = (() => {
     const far = Math.hypot(her.x - b.x, her.y - b.y) > (s.far || 6) * TILE;
     if (s.lead && far) await K.say(s.lead);
     K.G.hint = s.hint !== undefined ? s.hint : s.lead || null;
-    K.G.guide = () => (scene.name === "garden" && !b.gone ? { x: b.x, y: b.y - 10, edgeOnly: true } : null);
+    K.G.guide = () => (scene.name === "garden" && !b.gone ? { x: b.x, y: b.y - 10, edgeOnly: true, top: Wildlife.headTop(b).y, bottom: b.y } : null);
     const ahead = far && !!s.lead && !!s.ahead;
     if (ahead) {
       const side = K.herFeet().x < b.x ? -1 : 1;
@@ -186,7 +186,7 @@ const Favors = (() => {
     for (const id of walkers) { if (id === "magpie") K.G.onMagpie = go; else { const b = K.bird(id); if (b) b.onTap = go; } }
     const stopped = () => !isMoving() && !player.path.length;
     await K.until(() => within(reach) || (stop > 0 && stopped() && within(stop)));
-    if (!within(reach)) { go(); await K.until(stopped); }
+    if (!within(reach) || s.front) { go(); await K.until(stopped); }
     for (const id of walkers) { if (id === "magpie") K.G.onMagpie = null; else { const b = K.bird(id); if (b && b.onTap === go) b.onTap = null; } }
     if (s.intoView && place === "garden" && stepIntoView()) await K.until(stopped);
     K.G.hint = null;
@@ -459,6 +459,7 @@ const Favors = (() => {
       const morning = Array.isArray(d.morning) ? d.morning : d.morning && d.morning.steps;
       look(morning, `${where} morning`);
       look(d.out, `${where} going out`);
+      look(d.again, `${where} again`);
       for (const f of d.favors || []) look(f.steps, `${where} ${f.id}`);
       const night = d.night || {};
       for (const key of ["lookUp", "tomorrow"]) if (night[key] && !hasLine(night[key])) say(`${where} night: no line "${night[key]}"`);

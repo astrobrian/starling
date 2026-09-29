@@ -112,6 +112,10 @@ function persimmonFruits(v = 0) {
   return v === 2 ? [all[0], all[1], all[3]] : all.slice(0, v === 1 ? 4 : 5);
 }
 
+function plumFruits() {
+  return [[13, 30], [33, 19], [39, 31], [21, 17], [28, 33], [15, 21], [36, 25]];
+}
+
 const PROP_RENDERERS = {
   bigTree(v) {
     const b = new PixelBuffer(66, 78);
@@ -1020,7 +1024,7 @@ Object.assign(PROP_RENDERERS, {
     b.line(25, 44, 15, 34, 2.1, "bark", { flat: false });
     b.line(27, 43, 38, 35, 2.1, "bark", { flat: false });
     clumpCanopy(b, 26, 25, 20, 18, "hedge", 71, { clump: 4.6 });
-    for (const [x, y] of [[13, 30], [33, 19], [39, 31], [21, 17], [28, 33], [15, 21], [36, 25]]) plumFruit(b, x, y);
+    for (const [x, y] of plumFruits()) plumFruit(b, x, y);
     const fallen = [[10, 59.2], [40, 59.6], [33, 60.6]].slice(0, v ? 4 - Math.min(3, v) : 0);
     for (const [x, y] of fallen) {
       b.ellipse(x, y, 2.1, 1.5, VISITOR_FRUIT.plum);

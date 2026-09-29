@@ -34,6 +34,16 @@ const Story = (() => {
   const STOP = Object.assign(new Error("(the day ended: this part of the story stops here)"), { stop: true });
   const caught = (e) => { if (!(e && e.stop)) setTimeout(() => { throw e; }); };
   const wait = (seconds) => { const e = epoch; return new Promise((ok) => setTimeout(() => { if (e === epoch) ok(); }, seconds * 1000)); };
+  const waitOrTap = (seconds) => {
+    const e = epoch, world = document.getElementById("world");
+    return new Promise((ok) => {
+      let timer = null;
+      const done = () => { clearTimeout(timer); world.removeEventListener("pointerdown", done); if (e === epoch) ok(); };
+      timer = setTimeout(done, seconds * 1000);
+      world.addEventListener("pointerdown", done);
+    });
+  };
+  const frameTimes = (part, defaults) => ({ ...defaults, ...((window.DAY_FRAME || {})[part] || {}) });
   const until = (test) => new Promise((ok) => { if (test()) ok(); else waiters.push({ test, ok }); });
   const px = (tiles) => tiles * TILE;
   const garden = () => SCENES.garden.world;
@@ -101,9 +111,12 @@ const Story = (() => {
     const rows = total(widths) <= room || els.length < 2 ? [els.map((_, i) => i)]
       : [els.map((_, i) => i).filter((i) => i % 2 === 0), els.map((_, i) => i).filter((i) => i % 2 === 1)];
     const base = Math.max(at.y, h + 40 + (rows.length - 1) * ROW);
+    const aside = player.facing === "up" && !player.sitting ? (at.x < window.innerWidth / 2 ? 1 : -1) : 0;
+    const clear = gameToScreen(TILE, 0, false).x - gameToScreen(0, 0, false).x;          // (a tile, in points)
     rows.forEach((row, r) => {
       const width = total(row.map((i) => widths[i]));
-      let x = Math.max(EDGE, Math.min(window.innerWidth - EDGE - width, at.x - width / 2 + (r ? widths[row[0]] / 2 : 0)));
+      const from = aside > 0 ? at.x + clear : aside < 0 ? at.x - clear - width : at.x - width / 2 + (r ? widths[row[0]] / 2 : 0);
+      let x = Math.max(EDGE, Math.min(window.innerWidth - EDGE - width, from));
       for (const i of row) {
         els[i].style.left = `${Math.round(x + widths[i] / 2)}px`;
         els[i].style.top = `${Math.round(base - r * ROW)}px`;
@@ -123,11 +136,11 @@ const Story = (() => {
     if (!quiet) Sound.hearts();
   }
 
-  function setPhase(phase, glide = 3) {
+  function setPhase(phase, glide = 3, music = null) {
     State.set("phase", phase);
     Daylight.set(phase, glide);
     Wildlife.schedule(S().day, phase, garden(), glide === 0);
-    Sound.playMusic(phase === "night" ? "night" : "day");
+    Sound.playMusic(music || (phase === "night" ? "night" : "day"));
   }
 
   function hold(item) {
@@ -199,9 +212,11 @@ const Story = (() => {
         if (place === "garden" && scene.name === "room") return { ...doorSpot(), room: true };
         return null;
       }
-      if (typeof ref === "object" && ref && ref.bird) { const b = Wildlife.get(ref.bird); if (!b || b.gone) return null; }
+      const isBird = typeof ref === "object" && ref && ref.bird, b = isBird ? Wildlife.get(ref.bird) : null;
+      if (isBird && (!b || b.gone)) return null;
       const p = pos(ref, place);
-      return p && { x: p.x, y: p.y, room: place === "room", soft: !!opts.soft, edgeOnly: !!opts.edgeOnly, talking: !!opts.talking };
+      const span = b ? { top: Wildlife.headTop(b).y, bottom: b.y } : {};
+      return p && { x: p.x, y: p.y, room: place === "room", soft: !!opts.soft, edgeOnly: !!opts.edgeOnly, talking: !!opts.talking, ...span };
     };
   }
 
@@ -224,6 +239,7 @@ const Story = (() => {
   function applyWorld(entries, today = true) {
     for (const e of [].concat(entries || [])) {
       if (!e || (e.today && !today)) continue;
+      if (e.unlessHolding && holding() === e.unlessHolding) continue;      // (not while she carries it: her breakfast tray)
       const place = e.place || "garden";
       if (e.thing) {
         const t = findThing({ thing: e.thing, near: e.near, at: e.at, color: e.color, place }, place);
@@ -258,6 +274,7 @@ const Story = (() => {
     Wildlife.schedule(S().day, S().phase, garden(), true);
     effects = [];
     bathing = null;
+    perchedOutside = null;
     companion.carry = null;                                  // (nothing in the magpie's beak on a new day)
     if (typeof setPortraitLook === "function") for (const k of Object.keys(PORTRAIT_LOOKS)) setPortraitLook(k, null);
     applyAllWorld();
@@ -301,12 +318,14 @@ const Story = (() => {
     return new Promise((ok) => { bird.onReach = ok; });
   }
 
-  function approach(point, then, wet = false) {
+  function approach(point, then, wet = false, bird = null) {
     const her = herFeet();
     const tx = point.x / TILE, ty = point.y / TILE;
     const close = Math.hypot(her.x - point.x, her.y - point.y) <= 2.3 * TILE;
     const faceSpot = { x: Math.floor(tx), y: Math.floor(ty - 0.2) };
-    if (close && !isMoving()) { faceToward(faceSpot.x, faceSpot.y); then(); return; }
+    const bubble = bird && bird.thought ? (() => { const h = Wildlife.headTop(bird); return { l: h.x - 2 * CUE, r: h.x + 18 * CUE, t: h.y - 17 * CUE - 3, b: h.y }; })() : null;
+    const underBubble = (x, y) => !!bubble && x * TILE < bubble.r && (x + 1) * TILE > bubble.l && (y - 1) * TILE < bubble.b && (y + 1) * TILE > bubble.t;
+    if (close && !isMoving() && !underBubble(player.nx, player.ny)) { faceToward(faceSpot.x, faceSpot.y); then(); return; }
     let best = null;
     const mine = bankSide(player.nx, player.ny);
     for (let dy = -2; dy <= 2; dy++) {
@@ -318,7 +337,7 @@ const Story = (() => {
         if (reach > 2.2 || reach < 0.6) continue;
         const cx = (x + 0.5) * TILE, feet = (y + 1) * TILE;
         const underIt = Math.abs(point.x - cx) < 20 && point.y > feet - 40 && point.y < feet;
-        const d = Math.abs(x - player.nx) + Math.abs(y - player.ny) + (hiddenBehind(x, y) ? 4 : 0) + (underIt ? 4 : 0);
+        const d = Math.abs(x - player.nx) + Math.abs(y - player.ny) + (hiddenBehind(x, y) ? 4 : 0) + (underIt ? 4 : 0) + (underBubble(x, y) ? 4 : 0);
         if (!best || d < best.d) best = { x, y, d };
       }
     }
@@ -349,9 +368,9 @@ const Story = (() => {
     await wait(0.8);
   }
 
-  async function tapTapTap() {
+  async function tapTapTap(soft = false) {
     companion.pecking = true;
-    for (let i = 0; i < 3; i++) { Sound.tap(1150); await wait(0.2); }
+    for (let i = 0; i < 3; i++) { Sound.tap(1150, soft ? 0.08 : undefined); await wait(0.2); }
     companion.pecking = false;
   }
 
@@ -433,7 +452,10 @@ const Story = (() => {
     companion.mode = "away"; companion.flight = null;
     const picked = S().dollDay === day ? S().doll : null;
     if (picked) Dolls.reset(picked); else Dolls.ids().forEach((id) => Dolls.set(id, "snuggled"));
+    const d = DAY(day), knock = both && !!d && d.wakeUp === "magpie" && !done(`d${day}_wake`);
+    const knocking = knock ? scripted(async () => { await wait(0.3); await magpieToWindow(); await tapTapTap(true); }) : null;
     if (!night) await showDayCard(day);
+    if (knocking) await knocking;
     if (both) { await ourMorning(day, bed); return true; }
     bed.variant = 0;
     player.hidden = false;
@@ -456,6 +478,8 @@ const Story = (() => {
         await wait(1.0);
         const L = Husband.routine.lines();
         await Speech.say(null, { who: "husband", text: pick(L.morning) || "Good morning!", face: "joy", replies: (LINES.morning_reply || {}).replies || ["Good morning!"] });
+        const watching = companion.mode === "window" && !companion.flight;
+        if (watching) wait(0.9).then(() => { if (companion.mode === "window") { companion.joy = 0.35; showEmote("magpie", "heart"); } });
         await kiss();
         await wait(0.3);
         Husband.routine.pose("wave", "down");
@@ -541,6 +565,7 @@ const Story = (() => {
   }
 
   async function morningAtWindow(day, d, woke = false) {
+    const atWindow = () => companion.mode === "window" || (companion.flight && companion.flight.mode === "window");
     if (done(`d${day}_wake`)) {
       if (woke && S().again) {
         if (understands()) await friendsWaiting(day, d);
@@ -548,15 +573,17 @@ const Story = (() => {
           await scripted(async () => { await magpieToWindow(); await tapTapTap(); });
           const m = morningOf(d);
           await playSteps(day, { id: "wake", steps: m.steps }, false);
-          if (companion.mode === "window" || (companion.flight && companion.flight.mode === "window")) magpieFliesOff();
+          if (atWindow()) magpieFliesOff();
         }
       }
+      await againAtWindow(day, d);
+      if (atWindow()) magpieFliesOff();
       return;
     }
-    await scripted(async () => { await magpieToWindow(); await tapTapTap(); });
+    if (!atWindow()) await scripted(async () => { await magpieToWindow(); await tapTapTap(); });      // (on Day 1 it's on the sill already)
     const m = morningOf(d);
     await playSteps(day, { id: "wake", steps: m.steps, world: m.world });
-    if (companion.mode === "window" || (companion.flight && companion.flight.mode === "window")) magpieFliesOff();
+    if (atWindow()) magpieFliesOff();
   }
 
   async function friendsWaiting(day, d) {
@@ -564,7 +591,15 @@ const Story = (() => {
     G.thought = waitingThought(day, d);
     await say("friends_waiting");
     G.thought = null;
-    if (companion.mode === "window" || (companion.flight && companion.flight.mode === "window")) magpieFliesOff();
+  }
+
+  async function againAtWindow(day, d) {
+    if (!d.again || !understands()) return;
+    if (!(companion.mode === "window" || (companion.flight && companion.flight.mode === "window"))) {
+      await scripted(async () => { await magpieToWindow(); await tapTapTap(); });
+    }
+    await playSteps(day, { id: "again", steps: d.again }, false);
+    applyAllWorld();
   }
 
   function waitingThought(day, d) {
@@ -592,9 +627,11 @@ const Story = (() => {
   }
 
   function nightLines(night, words) {
-    if (night.lines) return [].concat(night.lines).filter((id) => id !== "new_stars" || words.length);
+    const stars = words.filter((w) => (window.CONSTELLATIONS || []).some((c) => c.words.includes(Words.base(w)) || c.words.includes(w))).length;
+    const look = stars === 1 && LINES.new_star ? "new_star" : "new_stars";
+    if (night.lines) return [].concat(night.lines).filter((id) => id !== "new_stars" || words.length).map((id) => (id === "new_stars" ? look : id));
     if (night.tomorrow) return [night.tomorrow];
-    return words.length ? ["new_stars"] : [];
+    return words.length ? [look] : [];
   }
   async function nightLine(line) {
     if (line && typeof line === "object") {
@@ -602,6 +639,7 @@ const Story = (() => {
       if (line.say) await say(line.say);
       return;
     }
+    if ((line === "new_stars" || line === "new_star") && Sky.lookAtNew && Sky.lookAtNew()) await wait(1.2);
     await say(line);
   }
 
@@ -614,15 +652,22 @@ const Story = (() => {
   let askingHome = false;
   async function headHome() {
     G.hint = null; G.guide = null;
-    await until(() => scene.name === "garden" && !changingPlace && companion.mode !== "away" && !companion.flight
-      && !busyCount && !Speech.isOpen() && !Closeup.isOpen() && !Sky.isOpen());
-    await wait(1.2);
-    G.onMagpie = () => { if (scene.name !== "garden") return false; askHome(); return true; };
-    if (!Speech.isOpen() && !busyCount) askHome();
+    const T = frameTimes("goHome", { freeFor: 10, stillFor: 3 });
+    let asked = false, since = null;
+    G.onMagpie = () => { if (scene.name !== "garden") return false; asked = true; askHome(); return true; };
+    await until(() => {
+      const free = scene.name === "garden" && !changingPlace && companion.mode !== "away" && !companion.flight
+        && !busyCount && !Speech.isOpen() && !Closeup.isOpen() && !Sky.isOpen() && !UI.bubbleShowing()
+        && !Quirks.playing() && !Husband.wondering();
+      if (!free) since = null;
+      else if (since === null) since = performance.now();
+      return asked || (since !== null && performance.now() - since >= T.freeFor * 1000 && player.still >= T.stillFor);
+    });
+    if (!asked) askHome();
     await NEVER;                                   // (the evening takes over from here: endDay)
   }
   async function askHome() {
-    if (askingHome || evening || Speech.isOpen() || scene.name !== "garden") return;
+    if (askingHome || evening || Speech.isOpen() || scene.name !== "garden" || changingPlace) return;
     const e = epoch;
     askingHome = true;
     const reply = await speak("head_home");
@@ -630,6 +675,7 @@ const Story = (() => {
     if (e !== epoch || evening) return;
     const yes = ((LINES.head_home && LINES.head_home.replies) || ["Yes!"])[0];
     if (reply === yes) endDay("garden");
+    else if (reply && LINES.head_home_later) say("head_home_later");
   }
 
   function askSleep() {
@@ -681,14 +727,21 @@ const Story = (() => {
     const finished = storyDone(day);
     const night = finished ? d.night || {} : {};
     evening.skippable = day > 1 && !(finished && (night.hook || night.chapterEnd || night.card || night.learn));
+    await carryHome(); live();
     if (Husband.state() !== "together") Husband.reset();
     if (Daylight.phase() !== "sunset" && Daylight.phase() !== "night") setPhase("sunset");
     if (from === "garden") {
       G.hint = "sunset";
       G.guide = () => (scene.name === "garden" ? { ...houseDoor() } : null);
+      if (scene.name === "garden" && companion.mode !== "away" && !nearHome()) {
+        if (LINES.head_home_follow) { await say("head_home_follow"); live(); }
+        const eave = porchPerch(porchBench());
+        magpieFlyTo("perch", eave.x, eave.y, eave.sortY);
+      }
       await until(() => !changingPlace && ((scene.name === "garden" && nearHome()) || scene.name === "room")); live();
       G.guide = null; G.hint = null;
     }
+    const kissInRoom = scene.name === "room";
     await scripted(async () => {
       player.path = []; player.interact = null;
       UI.hideBubble();
@@ -699,36 +752,61 @@ const Story = (() => {
       else { await Husband.routine.comeHome(); live(); }
       showSkip();
       if (!together) { Husband.says(pick(Husband.routine.lines().home)); await wait(1.3); live(); }
-      await kiss(); live();
-      await wait(0.3); live();
+      if (kissInRoom) { await kiss(); live(); await wait(0.3); live(); }
     });
-    await porch(day, finished, night); live();
+    await porch(day, finished, night, !kissInRoom); live();
     await bedtime(day);
   }
   const nearHome = () => { const f = herFeet(), dr = houseDoor(); return Math.hypot(f.x - dr.x, f.y - dr.y) < 4.5 * TILE; };
-  const porchBench = () => findThing({ thing: "bench", near: "door" }, "garden");
-
-  async function porch(day, finished, night) {
+  async function carryHome() {
+    if (scene.name === "garden" || scene.name === "room") return;
     const e = epoch, live = () => { if (e !== epoch) throw STOP; };
-    const bench = porchBench();
-    await scripted(async () => {
-      await fadeTo(true, true); live();
-      UI.hideBubble();
-      for (const t of garden().things.filter((o) => o !== bench && !o.blocks && o.y === bench.y && o.x < bench.x + bench.w && o.x + o.w > bench.x)) takeAway(t);
-      placeHer("garden", { x: bench.x, y: bench.y + 1 }, "down");
+    if (Sky.isOpen()) Sky.close();
+    await until(() => !Sky.isOpen() && !changingPlace); live();
+    if (typeof goHome === "function") goHome();
+    await until(() => (scene.name === "garden" || scene.name === "room") && !changingPlace); live();
+  }
+  const porchBench = () => findThing({ thing: "bench", near: "door" }, "garden");
+  const porchMusic = () => frameTimes("evening", { music: "lovePorch" }).music;
+
+  async function porch(day, finished, night, kissFirst = false) {
+    const e = epoch, live = () => { if (e !== epoch) throw STOP; };
+    const bench = porchBench(), eave = porchPerch(bench);
+    const T = frameTimes("evening", { sunsetFor: 0.5, nightFalls: 2.5, nightWait: 2.8, magpieFlies: 0.8 });
+    const onEave = () => companion.mode === "perch" && !companion.flight && Math.hypot(companion.px - eave.x, companion.py - eave.y) < 2;
+    const sitDown = () => {
+      const from = playerPixelPos();
       player.sitting = bench; player.seatDx = -8; player.facing = "down"; player.fishMoment = true; player.still = 0;
       const p = playerPixelPos();
+      if (kissFirst) player.hop = { dx: from.x - p.x, dy: from.y - p.y, t: 0.2, dur: 0.2 };
       Husband.routine.sit(Math.round(p.x) + 16, Math.round(p.y), bench.footY + 0.5);
-      companion.mode = "away"; companion.flight = null;
+    };
+    await scripted(async () => {
+      await fadeTo(true, true); live();
+      if (typeof upClose === "function") upClose(true, false);
+      UI.hideBubble();
+      const waiting = onEave();
+      for (const t of garden().things.filter((o) => o !== bench && !o.blocks && o.y === bench.y && o.x < bench.x + bench.w && o.x + o.w > bench.x)) takeAway(t);
+      placeHer("garden", { x: bench.x, y: bench.y + 1 }, "down");
+      if (kissFirst) {
+        const side = isWalkable(player.nx + 1, player.ny) || !isWalkable(player.nx - 1, player.ny) ? 1 : -1, p = playerPixelPos();
+        player.facing = side > 0 ? "right" : "left";
+        Husband.routine.at(Math.round(p.x) + side * 13, Math.round(p.y), side > 0 ? "left" : "right");
+      } else sitDown();
+      if (waiting && understands()) { magpieAt("perch", eave.x, eave.y, eave.sortY); companion.faceLeft = false; }
+      else { companion.mode = "away"; companion.flight = null; }
       Dolls.ids().filter((id) => Dolls.where(id) === "bed").forEach((id) => Dolls.set(id, "snuggled"));
       await fadeTo(false, true); live();
-      if (Daylight.phase() !== "night") { await wait(0.6); live(); setPhase("night", 4); await wait(4.4); live(); }
+      if (kissFirst) { await kiss(); live(); await wait(0.3); live(); sitDown(); }
+      if (Daylight.phase() !== "night") { await wait(T.sunsetFor); live(); setPhase("night", T.nightFalls, porchMusic()); await waitOrTap(T.nightWait); live(); }
+      else Sound.playMusic(porchMusic());
       if (!understands()) { await wait(2.4); live(); return; }      // (Day 1 before the star: the magpie isn't hers yet)
-      const eave = porchPerch(bench);
-      companion.px = eave.x + 100; companion.py = eave.y - 70; companion.mode = "perch";
-      magpieFlyTo("perch", eave.x, eave.y, eave.sortY);
-      companion.faceLeft = false;
-      await wait(1.3); live();
+      if (!onEave()) {
+        companion.px = eave.x + 48; companion.py = eave.y - 36; companion.mode = "perch";
+        magpieFlyTo("perch", eave.x, eave.y, eave.sortY);
+        companion.faceLeft = false;
+        await wait(T.magpieFlies); live();
+      }
       await say(night.lookUp || "d1_look_up"); live();
       if (night.learn) learn(...night.learn);
       const since = State.sinceDawn();
@@ -736,14 +814,12 @@ const Story = (() => {
       await until(() => Sky.settled()); live();
       await wait(0.6); live();
       for (const line of nightLines(night, since.words)) { await nightLine(line); live(); }
-      if (!night.hook) { await nightCards(night); live(); }
       Sky.close();
       await closed; live();
     });
     if (night.hook) {
       hideSkip();
       await nightHook(day, night.hook); live();
-      await scripted(async () => { await nightCards(night); live(); });
     }
     mark(`d${day}_sky`);
     if (understands()) {
@@ -751,6 +827,7 @@ const Story = (() => {
       magpieFlyTo("away", px(10), px(18));                   // (off to roost in the big tree)
       await wait(0.8); live();
     }
+    await scripted(async () => { await nightCards(night); live(); });
   }
   function porchPerch(bench) {
     const house = findThing("house");
@@ -798,9 +875,8 @@ const Story = (() => {
 
   async function nightCards(night) {
     const more = night.chapterEnd && UI_TEXT.toBeContinued;
-    if (night.card || night.chapterEnd) await showCard(UI_TEXT[night.card || "theEnd"] || night.card, night.chapterEnd && !more ? UI_TEXT.moreDays : "", night.chapterEnd && !more ? 5 : 3.5);
-    if (more) await showCard(UI_TEXT.toBeContinued, UI_TEXT.moreDays || "", 4, "star");
-    if (night.chapterEnd && typeof Backup !== "undefined") await Backup.offer();
+    if (night.card || night.chapterEnd) await showCard(UI_TEXT[night.card || "theEnd"] || night.card, night.chapterEnd && !more ? UI_TEXT.moreDays : "", night.chapterEnd && !more ? 5 : 3.5, "star", 1.5, true);
+    if (more) await showCard(UI_TEXT.toBeContinued, UI_TEXT.moreDays || "", 4, "star", 1.5, true);
   }
 
   async function nightHook(day, hook) {
@@ -820,6 +896,7 @@ const Story = (() => {
     hideSkip();
     await scripted(async () => {
       await fadeTo(true, true); live();
+      if (typeof upClose === "function") upClose(false, false);    // (the porch was up close: tomorrow the garden is as she likes it)
       if (Sky.isOpen()) Sky.close();
       UI.hideBubble();
       const bed = findThing("bed", "room");
@@ -829,7 +906,7 @@ const Story = (() => {
       companion.mode = "away"; companion.flight = null;
       State.set("phase", "night");
       Daylight.set("night", 0);
-      Sound.playMusic("night");
+      if (Sound.musicStatus().name !== porchMusic()) Sound.playMusic("night");     // (the porch's love theme carries on to bed)
       const mine = Dolls.carried();
       Dolls.ids().filter((id) => id !== mine).forEach((id) => Dolls.set(id, "snuggled"));
       if (mine) State.keepDiaryDoll(day, mine);
@@ -845,6 +922,7 @@ const Story = (() => {
       if (mine) Dolls.hopTo(mine, "snuggled", 0.15);
       Sound.sleep();
       await wait(1.6); live();
+      if (storyDone(day) && ((DAY(day) || {}).night || {}).chapterEnd && typeof Backup !== "undefined") { await Backup.offer(); live(); }
       await fadeTo(true, true); live();                         // the light goes out
       const again = !storyDone(day) && !!DAY(day);
       const next = again ? day : nextDay(day);
@@ -954,16 +1032,47 @@ const Story = (() => {
     const k = liveK();
     await Favors.run(d.out || [{ outside: {} }], k, { day, id: "out", key: `d${day}_out`, taken: [], engaged: false });
     if (k.stale()) throw STOP;
-    for (const f of d.favors || []) await playSteps(day, f);
+    let played = null;
+    for (const f of d.favors || []) {
+      if (done(`d${day}_${f.id}`)) continue;
+      if (played && leadsOff(f)) await breath();
+      await playSteps(day, f);
+      favorBeat(f);
+      played = f;
+    }
     await headHome();
+  }
+
+  function favorBeat(f) {
+    const b = (f.birds || []).map((x) => Wildlife.get(x.id)).find((x) => x && !x.gone && !x.act && !x.hiddenIn && !x.flight);
+    if (b) Wildlife.celebrate(b);
+    if (companion.mode !== "away" && !companion.flight && !companion.act) companion.joy = 0.35;
+  }
+  const QUIET_STEPS = ["bird", "thought", "emote", "guide", "world", "wait", "sound", "hint", "magpie"];
+  function leadsOff(f) {
+    if (f.breath !== undefined) return !!f.breath;
+    const first = (f.steps || []).find((s) => !(s && typeof s === "object" && QUIET_STEPS.some((k) => k in s) && !("meet" in s) && !("near" in s)));
+    return !!(first && typeof first === "object" && (first.meet || first.near) && first.lead);
+  }
+  async function breath() {
+    const secs = (window.DAY_FRAME || {}).breath || 3.5, since = performance.now();
+    let tapped = false;
+    G.onMagpie = () => { tapped = true; return true; };
+    await until(() => tapped || isMoving() || player.path.length > 0 || performance.now() - since > secs * 1000);
+    G.onMagpie = null;
   }
 
   async function freeDay(day, woke) {
     if (done(`d${day}_sky`)) return afterTheSky(day);
-    await morningAtWindow(day, { morning: ["free_morning"] }, woke);
+    let last = null;
+    for (let n = day - 1; n >= 1 && !last; n--) last = DAY(n);
+    const thought = ((last || {}).night || {}).thought;
+    const keep = thought && ICONS[thought] ? thought : null;
+    await morningAtWindow(day, { morning: [...(keep ? [{ thought: keep }] : []), "free_morning"] }, woke);
     await chooseDoll(day);
     await outside();
     G.hint = "free_day";
+    G.thought = keep;
     let visits = 0;
     const counted = new Set();
     freeVisit = (key) => { if (!counted.has(key)) { counted.add(key); visits++; } };
@@ -1103,7 +1212,7 @@ const Story = (() => {
     if (freeVisit) freeVisit(`bird:${bird.species}`);
     if (!bird.onReach) return false;
     const wet = ["swim", "wade", "still"].includes(bird.does);
-    approach({ x: bird.x, y: bird.y - 2 }, () => { Wildlife.greet(bird); const f = bird.onReach; if (f) { bird.onReach = null; f(); } }, wet);
+    approach({ x: bird.x, y: bird.y - 2 }, () => { Wildlife.greet(bird); const f = bird.onReach; if (f) { bird.onReach = null; f(); } }, wet, bird);
     return true;
   }
 
@@ -1139,7 +1248,16 @@ const Story = (() => {
     return false;
   }
 
+  let perchedOutside = null;
   function changedPlace(from, to) {
+    if (from === "garden" && to !== "garden" && companion.mode === "perch" && !companion.flight) {
+      perchedOutside = { x: companion.px, y: companion.py, sortY: companion.sortY, faceLeft: companion.faceLeft };
+      companion.mode = "away";
+    } else if (to === "garden" && perchedOutside) {
+      const p = perchedOutside;
+      perchedOutside = null;
+      if (companion.mode === "away" && !companion.flight) { magpieAt("perch", p.x, p.y, p.sortY); companion.faceLeft = p.faceLeft; }
+    }
     if (to === "garden" && from === "room" && companion.mode === "away" && !G.alone && (done("d1_star") || S().day > 1)) {
       const f = herFeet();
       companion.px = f.x - 110; companion.py = f.y - 70;
@@ -1239,7 +1357,11 @@ const Story = (() => {
     const m = 12 * CUE, safe = safeEdges(), k = (window.devicePixelRatio || 1) / scale;   // k: game pixels per point
     const x0 = camera.x + m + safe.left * k, x1 = camera.x + canvas.width - m - safe.right * k;
     const y0 = camera.y + m + icon.height + safe.top * k, y1 = camera.y + canvas.height - m - safe.bottom * k;
-    const off = g.x < camera.x - 6 || g.x > camera.x + canvas.width + 6 || g.y < camera.y - 6 || g.y > camera.y + canvas.height + 12;
+    const sprite = g.top !== undefined;
+    const hi = sprite ? g.top : g.y - icon.height - 4 * CUE, lo = sprite ? (g.bottom !== undefined ? g.bottom : g.y) : g.y - 4 * CUE;
+    const seen = Math.min(lo, camera.y + canvas.height - safe.bottom * k) - Math.max(hi, camera.y + safe.top * k);
+    const off = g.x < camera.x + safe.left * k - 6 || g.x > camera.x + canvas.width - safe.right * k + 6
+      || seen < (sprite ? Math.min(6 * CUE, (lo - hi) / 2) : lo - hi);
     if (!off) return false;
     const x = Math.max(x0, Math.min(x1, g.x));
     let y = Math.max(y0, Math.min(y1, g.y));
@@ -1247,7 +1369,8 @@ const Story = (() => {
     const gear = document.getElementById("menu-button").getBoundingClientRect();
     const side = document.getElementById("husband-button");
     const box = side && !side.classList.contains("hidden") ? side.getBoundingClientRect() : null;
-    const left = box ? Math.min(gear.left, box.left) : gear.left, bottom = box ? Math.max(gear.bottom, box.bottom) : gear.bottom;
+    const row = [...document.querySelectorAll(".corner-button")].filter((b) => !b.classList.contains("hidden")).map((b) => b.getBoundingClientRect());
+    const left = Math.min(gear.left, box ? box.left : Infinity, ...row.map((r) => r.left)), bottom = box ? Math.max(gear.bottom, box.bottom) : gear.bottom;
     const at = gameToScreen(x, y - icon.height);
     if (at.x > left - 12 && at.y < bottom + 6) y += (bottom + 6 - at.y) * (window.devicePixelRatio || 1) / scale;
     const a = Math.atan2(g.y - y, g.x - x), dir = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
@@ -1300,7 +1423,8 @@ const Story = (() => {
     endDay: (from = scene.name === "room" ? "room" : "garden") => endDay(from),
     skip: () => skipEvening(),
     play: (steps) => Favors.run(steps, K, { day: S().day, id: "test", key: "test", taken: [], engaged: false }),
-    debug: () => ({ day: S().day, phase: S().phase, done: Object.keys(S().done), learned: Object.keys(S().learned), holding: holding(), hint: G.hint, busy: busyCount, friends: S().friends,
+    inView: () => ({ guides: [].concat((G.guide && G.guide()) || []), birds: ((current && current.favor && current.favor.birds) || []).map((b) => b.id), thought: !!G.thought }),
+    debug: () => ({ day: S().day, phase: S().phase, done: Object.keys(S().done), learned: Object.keys(S().learned), holding: holding(), hint: G.hint, thought: G.thought, busy: busyCount, friends: S().friends,
       waitingFor: [...new Set(listeners.map((l) => l.type))], magpie: companion.mode,
       favor: current ? current.key : null, inFavor: inFavor(), bridge: State.bridgeBirds() }),
   };

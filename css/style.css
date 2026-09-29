@@ -112,6 +112,12 @@ body {
   top: calc(env(safe-area-inset-top) + 10px);
   right: calc(env(safe-area-inset-right) + 12px);
 }
+
+.corner-button { top: calc(env(safe-area-inset-top) + 10px); }
+#music-button { right: calc(env(safe-area-inset-right) + 68px); }
+#zoom-in-button { right: calc(env(safe-area-inset-right) + 124px); }
+#zoom-out-button { right: calc(env(safe-area-inset-right) + 180px); }
+.corner-button.at-end { opacity: 0.4; }                 
 #back-button {
   top: calc(env(safe-area-inset-top) + 10px);
   left: calc(env(safe-area-inset-left) + 12px);
@@ -206,7 +212,7 @@ body {
   pointer-events: none;
 }
 
-#settings, #confirm, #credits, #menu {
+#settings, #confirm, #credits, #menu, #fullscreen-card {
   position: fixed;
   inset: 0;
   z-index: 9;
@@ -280,7 +286,7 @@ body {
   justify-content: center;
   gap: 10px;
 }
-.title-row button {
+.title-row button, #title-fullscreen {
   min-height: 48px;
   padding: 0 18px;
   border-radius: 24px;
@@ -290,7 +296,10 @@ body {
   font: 600 19px var(--font);
   touch-action: manipulation;
 }
-.title-row button:active { transform: translateY(2px); }
+.title-row button:active, #title-fullscreen:active { transform: translateY(2px); }
+
+#title-fullscreen { position: absolute; z-index: 2; top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 14px); min-height: 44px; padding: 0 14px; font-size: 16px; }
+#title.under-card #title-fullscreen { opacity: 0; }
 .title-row button.new::after { content: " ✦"; color: var(--starlight); animation: twinkle-new 1.4s ease-in-out infinite; }
 @keyframes twinkle-new { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 
@@ -459,7 +468,7 @@ body {
 #confirm-what canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 #confirm-what span { margin-right: 10px; }
 .confirm-row { display: flex; justify-content: center; gap: 12px; margin-top: 18px; }
-.confirm-row button, #credits-done, #menu button, #backup-done {
+.confirm-row button, #credits-done, #menu button, #backup-done, #fullscreen-done {
   min-width: 130px;
   min-height: 50px;
   padding: 0 22px;
@@ -470,7 +479,7 @@ body {
   font: 600 22px var(--font);
   touch-action: manipulation;
 }
-#confirm-no, #credits-done, #menu #menu-resume {
+#confirm-no, #credits-done, #menu #menu-resume, #fullscreen-done {
   border-color: var(--starlight);
   background: var(--starlight);
   color: var(--night-indigo);
@@ -479,6 +488,14 @@ body {
 #credits p { margin: 8px auto; max-width: 440px; font-size: 22px; line-height: 1.3; }
 #credits .credit { margin-top: 14px; font-size: 14px; color: var(--dusk-lavender); }
 #credits-done { margin-top: 14px; }
+#fullscreen-card .card { max-height: calc(100% - 24px); overflow: auto; }
+#fullscreen-card h2 { margin: 0 0 6px; font-size: 22px; }
+#fullscreen-card h2 small.korean { display: block; margin-top: 0; font-size: 13px; font-weight: 400; color: var(--dusk-lavender); }
+#fullscreen-steps { margin: 0 auto; padding-left: 24px; max-width: 560px; text-align: left; font-size: 16px; line-height: 1.25; }
+#fullscreen-steps li { margin: 4px 0; }
+#fullscreen-card small.korean { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 400; color: var(--dusk-lavender); }
+#fullscreen-note { margin: 8px auto 0; max-width: 560px; font-size: 13px; line-height: 1.25; color: var(--dusk-lavender); }
+#fullscreen-done { margin-top: 8px; }
 #menu .card { display: flex; flex-direction: column; gap: 12px; min-width: 240px; }
 #settings .card { position: relative; padding: 14px 34px 16px; }
 #settings h2 { margin: 0 0 6px; font-size: 26px; }
