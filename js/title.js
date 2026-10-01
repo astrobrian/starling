@@ -374,7 +374,8 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     fill($("title-fullscreen"), UI_TEXT.fullScreen);
     $("title-fullscreen").classList.toggle("hidden", !(apple && !homeScreen) && !PARAMS.has("fullscreenTip"));
     withKorean($("fullscreen-title"), UI_TEXT.fullScreen, UI_TEXT.fullScreenKorean);
-    for (const [en, ko] of UI_TEXT.fullScreenSteps) { const li = document.createElement("li"); withKorean(li, en, ko); $("fullscreen-steps").appendChild(li); }
+    const kakao = /KAKAOTALK/i.test(navigator.userAgent);
+    for (const [en, ko] of [...(kakao ? [UI_TEXT.fullScreenKakao] : []), ...UI_TEXT.fullScreenSteps]) { const li = document.createElement("li"); withKorean(li, en, ko); $("fullscreen-steps").appendChild(li); }
     withKorean($("fullscreen-note"), UI_TEXT.fullScreenNote[0], UI_TEXT.fullScreenNote[1]);
     fill($("fullscreen-done"), UI_TEXT.done);
     $("title-fullscreen").addEventListener("click", () => { unlock(false); $("fullscreen-card").classList.remove("hidden"); });

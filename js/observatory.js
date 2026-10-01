@@ -366,7 +366,15 @@ const Observatory = (() => {
       const tx = Wpx * (0.5 + ((info.az - 180) / 180) * 0.8), ty = TILE * (1.5 + (1 - Math.min(40, Math.max(0, info.alt)) / 40) * 1.6);
       const boxes = WORLD.things.map((t) => { const s = thingSprite(t, 1); return { s, l: t.footX - s.ax, t: t.footY - s.ay }; });
       const solid = (x, y) => covered(x, y) || boxes.some((b) => isSolid(b.s.canvas, x - b.l, y - b.t));
+      const perPt = (window.devicePixelRatio || 1) / scale, inset = typeof safeEdges === "function" ? safeEdges().right : 0;
+      const range = (world, view) => (world <= view ? [(world - view) / 2, (world - view) / 2] : [0, world - view]);
+      const [cx0, cx1] = range(Wpx, canvas.width), [cy0, cy1] = range(WORLD.H * TILE, canvas.height);
+      const corner = [{ w: 240, h: 72 }, { w: 76, h: 180 }].map((c) => ({
+        l: canvas.width - (c.w + inset) * perPt + cx0, r: canvas.width + cx1, t: cy0, b: c.h * perPt + cy1,
+      }));
+      const byButtons = (x, y) => corner.some((c) => x + r + 2 > c.l && x - r - 2 < c.r && y + r + 2 > c.t && y - r - 2 < c.b);
       const clear = (x, y) => {
+        if (byButtons(x, y)) return false;
         const R = r + 8;
         for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
           const d2 = dx * dx + dy * dy;

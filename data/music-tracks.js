@@ -27,5 +27,17 @@ window.MUSIC_TRACKS = {
   "themeMorning": {
     "file": "music/themeMorning.mp3",
     "seconds": 124.517
+  },
+  "riverDay": {
+    "file": "music/riverDay.mp3",
+    "seconds": 126.786
+  },
+  "rain": {
+    "file": "music/rain.mp3",
+    "seconds": 107.205
+  },
+  "house": {
+    "file": "music/house.mp3",
+    "seconds": 88.861
   }
 };

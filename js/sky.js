@@ -170,14 +170,15 @@ const Sky = (() => {
   let moonAt = { key: null, spot: null };
   function moonSpot(lay, info) {
     if (!lay || !info || !info.up) return null;
-    const key = `${lay.key}|${info.day}`;
+    const shows = lay.cons.filter((c) => c.stars.some((s) => born[s.word] !== undefined || promise.includes(s.word)));
+    const key = `${lay.key}|${info.day}|${shows.map((c) => c.id).join(",")}`;
     if (moonAt.key === key) return moonAt.spot;
     const r = MOON_R * CUE, skyW = lay.skyW;
     const horizon = lay.h - 12 * CUE, top = 14 * CUE;
     const tx = skyW * (0.5 + ((info.az - 180) / 180) * 0.46);
     const ty = horizon - (Math.max(0, info.alt) / 60) * (horizon - top);
     const points = [], segs = [], boxes = [];
-    for (const c of lay.cons) {
+    for (const c of shows) {
       if (!c.stars.length || c.box.r < tx - 280 * CUE || c.box.l > tx + 280 * CUE) continue;
       boxes.push({ l: c.box.l - 4 * CUE, r: c.box.r + 4 * CUE, t: c.box.t - 4 * CUE, b: c.box.b + 4 * CUE });     // (never inside a figure, even between its stars)
       for (const s of c.stars) points.push([s.x, s.y, r + 9 * CUE]);
@@ -422,8 +423,17 @@ const Sky = (() => {
   function keepAbove(boxTop) {
     liftGoal = 0;
     if (!open || review || boxTop === null || boxTop === undefined || !L) return;
-    const span = focusSpan(L);
+    const a = focusSpan(L), b = freshSpan(L);
+    let span = a || b;
+    if (a && b) {
+      const both = [Math.min(a[0], b[0]), Math.max(a[1], b[1])];
+      if (both[1] + 10 * CUE - boxTop <= both[0] - 12 * CUE) span = both;
+    }
     if (span) liftGoal = Math.max(0, Math.min(span[1] + 10 * CUE - boxTop, span[0] - 12 * CUE));
+  }
+  function freshSpan(lay) {
+    const ys = Object.keys(born).filter((w) => born[w] > 0 && lay.star[w] && lay.star[w].x - pan > 0 && lay.star[w].x - pan < lay.w).map((w) => lay.star[w].y);
+    return ys.length ? [Math.min(...ys) - 8 * CUE, Math.max(...ys) + 6 * CUE] : null;
   }
   function focusSpan(lay) {
     if (focus === "@bridge") return lay.bridge ? [lay.bridge.topY - 6 * CUE, lay.bridge.footY + 6 * CUE] : null;
@@ -953,11 +963,13 @@ const Sky = (() => {
   function lookAtNew() {
     if (!L || !open) return false;
     const fresh = Object.keys(born).filter((w) => born[w] > 0 && L.star[w]);     // (the stars from before tonight are at -10)
-    if (!fresh.length || fresh.some((w) => L.star[w].x - pan > 10 && L.star[w].x - pan < L.w - 10)) return false;
+    if (!fresh.length) return false;
     const count = {};
     for (const w of fresh) { const id = conOf(w); if (id) count[id] = (count[id] || 0) + 1; }
     const most = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
     if (!most) return false;
+    const onScreen = (w) => L.star[w].x - pan > 10 && L.star[w].x - pan < L.w - 10;
+    if (fresh.filter((w) => conOf(w) === most).every(onScreen)) return false;
     lookAt(most);
     return true;
   }

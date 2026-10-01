@@ -44,7 +44,7 @@ window.HUSBAND = {
     ],
     wonder: ["What's that?"],
     found: ["Look! {a thing}!", "Oh, look! {a thing}!", "There! {a thing}!"],
-    gone: ["It flew away! Bye-bye, {thing}!"],
+    gone: ["It flew away! See you soon, {thing}!"],
     thanks: ["{a thing}! Thank you!", "Oh, {a thing}! Thank you!"],
     bye: ["See you soon!", "See you tonight!"],
     goodnight: ["Good night!"],

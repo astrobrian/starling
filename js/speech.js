@@ -88,6 +88,7 @@ const Speech = (() => {
     const line = { ...LINES[id], ...extra };
     if (!line.who) return Promise.resolve(null);
     endLine();                    // (the line showing now ends first: one line at a time)
+    if (typeof UI !== "undefined" && UI.hideBubble) UI.hideBubble();
     current = line;
     const box = $("speech");
     const text = $("speech-text");

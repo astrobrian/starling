@@ -14,12 +14,13 @@ window.UI_TEXT = {
   fullScreen: "Full screen",
   fullScreenKorean: "전체 화면",
   fullScreenSteps: [
-    ["In Safari, tap Share (a square with an arrow). It may be in the ••• menu.", "사파리에서 공유(화살표가 있는 네모)를 누르세요. ••• 메뉴 안에 있을 수도 있어요."],
-    ["Tap \"Add to Home Screen\", then \"Add\".", "'홈 화면에 추가'를 누르고, '추가'를 누르세요."],
-    ["Open Starling from your Home Screen: full screen!", "홈 화면에서 Starling을 열면 화면 가득 보여요!"],
+    ["In Safari, tap Share (a square with an arrow). It may be in the ••• menu.", "사파리에서 공유 버튼(위쪽 화살표가 있는 네모)을 눌러 주세요. ••• 메뉴 안에 있을 수도 있어요."],
+    ["Tap \"Add to Home Screen\", then \"Add\".", "'홈 화면에 추가'를 누르고, '추가'를 눌러 주세요."],
+    ["Tap Starling (the magpie icon) on your Home Screen: full screen!", "홈 화면에 새로 생긴 까치 아이콘(Starling)을 누르면, 화면 가득 보여요!"],
   ],
-  fullScreenNote: ["Your stars stay in Safari. To take them along: Settings, Backup, Save here; then Load in the Home Screen game.",
-    "별은 사파리에 남아 있어요. 옮기려면: 여기서 설정 → 백업 → 저장, 그다음 홈 화면 게임에서 불러오기."],
+  fullScreenKakao: ["Opened in KakaoTalk? First open this page in Safari.", "카카오톡에서 열었다면, 먼저 사파리로 열어 주세요."],
+  fullScreenNote: ["The Home Screen game keeps its own save. To bring your stars: here, Settings → Backup → Save; then, in the Home Screen game, Settings → Backup → Load.",
+    "홈 화면 게임은 따로 저장돼요. 지금까지 모은 별을 가져가려면: 여기서 Settings → Backup → Save(저장), 그다음 홈 화면 게임에서 Settings → Backup → Load(불러오기)를 눌러 주세요."],
   madeByFor: "Made with love by {by} for {for}.",
   madeWithLove: "Made with love.",                // until DEDICATION (below) has the names
   thanks: "Thank you for playing!",

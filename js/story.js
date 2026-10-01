@@ -807,6 +807,7 @@ const Story = (() => {
         companion.faceLeft = false;
         await wait(T.magpieFlies); live();
       }
+      if (typeof magpieAct === "function") magpieAct("lookUp", 2.6);          // (it points its beak up as it says it)
       await say(night.lookUp || "d1_look_up"); live();
       if (night.learn) learn(...night.learn);
       const since = State.sinceDawn();
