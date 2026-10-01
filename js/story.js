@@ -10,18 +10,16 @@ const Story = (() => {
     onMagpie: null,                // she tapped the magpie: () => true if the story took the tap
     onRoof: null,                  // she tapped the roof of her house: () => true if the story took the tap
     alone: false,                  // going out alone (Day 1): the magpie isn't waiting outside her door
+    closeupStar: false,            // the fallen star waits in the flower close-up (Day 1: js/moments.js fallenStar)
   };
   let listeners = [];              // she reached a thing: [{ type, fn }]
   let placeWatchers = [];          // she went somewhere else: [fn(from, to)]
-  let effects = [];                // little things in the garden: a fallen persimmon, star candies, a drifting feather
-  let glows = [];                  // soft lights on things (the saved persimmon): [{ t, dx, dy, r, color }]
   let touched = new Map();         // things the world state changed, and how they were built
   let takenAway = [];              // things the world state took away: [{ t, place }]
   let added = [];                  // things the world state added: [{ t, place }]
   let starFound = false;           // Day 1: she picked up the star in the close-up
   let started = false;
   let current = null;              // the favor (or morning) being played: { day, id, key, taken, engaged }
-  let bathing = null;              // the bird bath birds are splashing in (its front half is drawn over them)
   let epoch = 0;                   // which chain of the story is alive (ending a day early starts a new one)
   let evening = null;              // the day is ending: { day, from, skippable }
   let morning = false;             // their morning together is playing
@@ -43,7 +41,7 @@ const Story = (() => {
       world.addEventListener("pointerdown", done);
     });
   };
-  const frameTimes = (part, defaults) => ({ ...defaults, ...((window.DAY_FRAME || {})[part] || {}) });
+  const frame = (part) => { const v = (window.DAY_FRAME || {})[part]; return v ?? {}; };
   const until = (test) => new Promise((ok) => { if (test()) ok(); else waiters.push({ test, ok }); });
   const px = (tiles) => tiles * TILE;
   const garden = () => SCENES.garden.world;
@@ -88,47 +86,8 @@ const Story = (() => {
       fresh.push(w);
     }
     if (!fresh.length) return;
-    floatWords(fresh);
+    Effects.floatWords(fresh);
     showEmote("player", "sparkles");
-  }
-
-  function floatWords(words) {
-    const app = document.getElementById("app");
-    const p = playerPixelPos(), at = gameToScreen(p.x + 8, p.y - TILE - 4);
-    const els = words.map((w) => {
-      const el = document.createElement("div");
-      el.className = "float-word";
-      el.textContent = w;
-      el.style.visibility = "hidden";
-      el.style.animation = "none";              // (it starts when its turn comes)
-      app.appendChild(el);
-      return el;
-    });
-    const GAP = 10, EDGE = 8, ROW = 46;
-    const widths = els.map((el) => el.offsetWidth), h = Math.max(...els.map((el) => el.offsetHeight));
-    const room = window.innerWidth - 2 * EDGE;
-    const total = (list) => list.reduce((a, b) => a + b, 0) + GAP * (list.length - 1);
-    const rows = total(widths) <= room || els.length < 2 ? [els.map((_, i) => i)]
-      : [els.map((_, i) => i).filter((i) => i % 2 === 0), els.map((_, i) => i).filter((i) => i % 2 === 1)];
-    const base = Math.max(at.y, h + 40 + (rows.length - 1) * ROW);
-    const aside = player.facing === "up" && !player.sitting ? (at.x < window.innerWidth / 2 ? 1 : -1) : 0;
-    const clear = gameToScreen(TILE, 0, false).x - gameToScreen(0, 0, false).x;          // (a tile, in points)
-    rows.forEach((row, r) => {
-      const width = total(row.map((i) => widths[i]));
-      const from = aside > 0 ? at.x + clear : aside < 0 ? at.x - clear - width : at.x - width / 2 + (r ? widths[row[0]] / 2 : 0);
-      let x = Math.max(EDGE, Math.min(window.innerWidth - EDGE - width, from));
-      for (const i of row) {
-        els[i].style.left = `${Math.round(x + widths[i] / 2)}px`;
-        els[i].style.top = `${Math.round(base - r * ROW)}px`;
-        x += widths[i] + GAP;
-      }
-    });
-    els.forEach((el, i) => setTimeout(() => {
-      el.style.visibility = "";
-      el.style.animation = "";
-      Sound.twinkle();
-      setTimeout(() => el.remove(), 2000);
-    }, i * 650));
   }
 
   function friend(species, { quiet = false, id = null } = {}) {
@@ -194,10 +153,34 @@ const Story = (() => {
     return p && { x: p.x + (ref.dx || 0), y: p.y + (ref.dy || 0) };
   }
 
+  function placed(o, place = "garden") {
+    if (!o.at) return o;
+    const p = pos(o.at, place), [w, h] = thingKind(o.type, worldOf(place)).size;
+    const { at, ...rest } = o;
+    return { ...rest, x: p.x / TILE - w / 2, y: p.y / TILE - h };
+  }
+
   function sortAfter(ref, spot) {
     const t = findThing(ref, null, spot);
     return t ? t.footY + 0.5 : null;
   }
+
+  function clearOfThings(box, except = null, place = "garden", slack = 0) {
+    const w = worldOf(place);
+    let touching = 0;
+    for (const t of w.things) {
+      if (t.flat || (except && except(t))) continue;
+      const kind = thingKind(t.type, w);
+      if (kind && kind.name === null) continue;
+      const s = thingSprite(t, 1), x0 = t.footX - s.ax, y0 = t.footY - s.ay;
+      if (box.x + box.w <= x0 || box.x >= x0 + s.canvas.width || box.y + box.h <= y0 || box.y >= y0 + s.canvas.height) continue;
+      for (let y = box.y; y < box.y + box.h; y += 2) {
+        for (let x = box.x; x < box.x + box.w; x += 2) if (isSolid(s.canvas, Math.floor(x - x0), Math.floor(y - y0)) && ++touching > slack) return false;
+      }
+    }
+    return true;
+  }
+  const birdBox = (x, y) => ({ x: x - 7, y: y - 13, w: 14, h: 12 });
 
   function guideTo(ref, o = {}) {
     const place = placeOf(ref, o.place);
@@ -234,7 +217,7 @@ const Story = (() => {
     takenAway = [];
     for (const { t, place } of added) removeThing(t, worldOf(place));
     added = [];
-    glows = [];
+    Effects.clearGlows();
   }
   function applyWorld(entries, today = true) {
     for (const e of [].concat(entries || [])) {
@@ -245,12 +228,12 @@ const Story = (() => {
         const t = findThing({ thing: e.thing, near: e.near, at: e.at, color: e.color, place }, place);
         if (t) {
           if (e.variant !== undefined) { touch(t); t.variant = e.variant; }
-          if (e.glow) glows.push({ t, ...e.glow });
-          if (e.glow === false) glows = glows.filter((g) => g.t !== t);       // (its glow goes out: the saved persimmon, eaten)
+          if (e.glow) Effects.glow(t, e.glow);
+          if (e.glow === false) Effects.unglow(t);       // (its glow goes out: the saved persimmon, eaten)
           if (e.remove) takeAway(t, place);
         }
       }
-      if (e.add) added.push({ t: addThing(e.add, worldOf(place)), place });
+      if (e.add) added.push({ t: addThing(placed(e.add, place), worldOf(place)), place });
       if (e.birds) for (const b of e.birds) storyBird(b);
     }
   }
@@ -272,11 +255,10 @@ const Story = (() => {
   function setUpWorld() {
     Wildlife.clear();
     Wildlife.schedule(S().day, S().phase, garden(), true);
-    effects = [];
-    bathing = null;
+    Effects.clear();
     perchedOutside = null;
-    companion.carry = null;                                  // (nothing in the magpie's beak on a new day)
-    if (typeof setPortraitLook === "function") for (const k of Object.keys(PORTRAIT_LOOKS)) setPortraitLook(k, null);
+    Magpie.carry(null);                                      // (nothing in the magpie's beak on a new day)
+    for (const k of Object.keys(PORTRAIT_LOOKS)) setPortraitLook(k, null);
     applyAllWorld();
   }
 
@@ -290,7 +272,7 @@ const Story = (() => {
     const have = Wildlife.get(spec.id);
     if (have) return have;
     if (!BIRDS[spec.species]) { console.warn(`Starling: no bird "${spec.species}" in data/birds.js`); return null; }
-    if (spec.portrait && spec.look && typeof setPortraitLook === "function") setPortraitLook(spec.species, spec.look);
+    if (spec.portrait && spec.look) setPortraitLook(spec.species, spec.look);
     const at = pos(spec.at || "her") || herFeet();
     if (spec.borrow) {
       const mine = Wildlife.all().filter((b) => !b.story && !b.gone && b.species === spec.species)
@@ -298,7 +280,7 @@ const Story = (() => {
       if (mine) {
         mine.id = spec.id; mine.story = true; mine.favor = spec.favor !== false;
         if (spec.thought !== undefined) mine.thought = spec.thought;
-        if (spec.greets) mine.greets = true;
+        if (spec.greets) mine.greets = spec.greets;
         return mine;
       }
     }
@@ -308,14 +290,36 @@ const Story = (() => {
       sortY: spec.sortAfter ? sortAfter(spec.sortAfter, at) : spec.sortY,
       look: spec.look ? lookWith(BIRDS[spec.species], spec.look) : undefined,
     });
-    if (spec.greets) b.greets = true;
+    if (spec.greets) b.greets = spec.greets;
     if (spec.lag) b.lag = spec.lag;
-    if (spec.act && typeof Wildlife.act === "function") Wildlife.act(b, spec.act, 0);     // (asleep: the parrotbills in their bush)
+    if (spec.act) Wildlife.act(b, spec.act, 0);     // (asleep: the parrotbills in their bush)
     return b;
   }
 
-  function talkTo(bird) {
-    return new Promise((ok) => { bird.onReach = ok; });
+  const STAND_BY = 1.2;
+  function talkTo(bird, close = 0) {
+    return new Promise((ok) => {
+      let over = false;
+      const reach = () => { if (over) return; over = true; ok("tap"); };
+      bird.onReach = reach;
+      if (!close) return;
+      const ground = () => ({ x: bird.x, y: bird.sortY !== null && bird.sortY !== undefined ? Math.max(bird.y, bird.sortY) : bird.y });
+      const near = () => {
+        if (over || bird.onReach !== reach) return over;
+        if (scene.name !== "garden" || changingPlace || isMoving() || player.path.length || pending || bird.flight || bird.gone || bird.hiddenIn) return false;
+        if (player.still < STAND_BY || Speech.isOpen() || busyCount) return false;
+        const g = ground(), f = herFeet();
+        return Math.hypot(f.x - g.x, f.y - g.y) <= close * TILE;
+      };
+      waiters.push({ test: near, ok: () => {
+        if (over) return;
+        over = true;
+        if (bird.onReach === reach) bird.onReach = null;
+        faceToward(Math.floor(bird.x / TILE), Math.floor((bird.y - 2) / TILE));
+        Wildlife.greet(bird);
+        ok("near");
+      } });
+    });
   }
 
   function approach(point, then, wet = false, bird = null) {
@@ -362,48 +366,48 @@ const Story = (() => {
 
   async function magpieToWindow() {
     const sill = WINDOW_SILL();
-    companion.px = sill.x + 90; companion.py = sill.y - 60;
-    companion.mode = "perch"; companion.faceLeft = true;
-    magpieFlyTo("window", sill.x, sill.y, sill.sortY);
+    Magpie.from(sill.x + 90, sill.y - 60);
+    Magpie.face(true);
+    Magpie.flyTo("window", sill.x, sill.y, sill.sortY);
     await wait(0.8);
   }
 
   async function tapTapTap(soft = false) {
-    companion.pecking = true;
+    Magpie.pecking(true);
     for (let i = 0; i < 3; i++) { Sound.tap(1150, soft ? 0.08 : undefined); await wait(0.2); }
-    companion.pecking = false;
+    Magpie.pecking(false);
   }
 
   const flyingAway = () => companion.flight && companion.flight.mode === "away";
   async function magpieFliesOff() {
     if (flyingAway() || (companion.mode === "away" && !companion.flight)) return;
     const f = companionFoot();
-    magpieFlyTo("away", f.x + 120, f.y - 90);
+    Magpie.flyTo("away", f.x + 120, f.y - 90);
     await wait(1);
   }
 
   async function magpieJoins() {
     const f = herFeet();
-    companion.mode = "perch"; companion.px = f.x - 110; companion.py = f.y - 70;
-    magpieFlyTo("follow");
+    Magpie.from(f.x - 110, f.y - 70);
+    Magpie.flyTo("follow");
     await wait(0.9);
   }
 
   function magpieDo(m) {
-    if (m === "follow" || m === "head") magpieFlyTo(m);
+    if (m === "follow" || m === "head") Magpie.flyTo(m);
     else if (m === "away") magpieFliesOff();
-    else if (m === "nest") magpieFlyTo("away", px(10), px(18));
-    else if (m === "joy") companion.joy = 0.35;
+    else if (m === "nest") Magpie.flyTo("away", px(10), px(18));
+    else if (m === "joy") Magpie.joy();
     else if (m && typeof m === "object") {
       const spot = m.perch || m.fly;
       const p = spot && pos(spot, m.place);
       const sortOf = (q) => (m.sortAfter ? sortAfter(m.sortAfter, q) : m.sortY !== undefined ? m.sortY : q.y + 0.5);
-      if (p) magpieFlyTo("perch", p.x, p.y, sortOf(p));
+      if (p) Magpie.flyTo("perch", p.x, p.y, sortOf(p));
       const at = m.sit && pos(m.sit, m.place);
-      if (at) magpieAt("perch", at.x, at.y, sortOf(at));
-      if (m.face) companion.faceLeft = m.face === "left";
-      if (m.joy) companion.joy = 0.35;
-      if ("carry" in m) companion.carry = m.carry || null;
+      if (at) Magpie.at("perch", at.x, at.y, sortOf(at));
+      if (m.face) Magpie.face(m.face === "left");
+      if (m.joy) Magpie.joy();
+      if ("carry" in m) Magpie.carry(m.carry);
     }
   }
 
@@ -449,7 +453,7 @@ const Story = (() => {
     player.hidden = true;
     bed.variant = both ? 2 : 1;
     if (both) { const h = hisSpot(bed); Husband.routine.at(h.x, h.y, "left"); Husband.routine.hide(true); }
-    companion.mode = "away"; companion.flight = null;
+    Magpie.away();
     const picked = S().dollDay === day ? S().doll : null;
     if (picked) Dolls.reset(picked); else Dolls.ids().forEach((id) => Dolls.set(id, "snuggled"));
     const d = DAY(day), knock = both && !!d && d.wakeUp === "magpie" && !done(`d${day}_wake`);
@@ -477,9 +481,9 @@ const Story = (() => {
         if (!picked) Dolls.ids().forEach((id, i) => Dolls.hopTo(id, "bench", 0.3 + i * 0.2));
         await wait(1.0);
         const L = Husband.routine.lines();
-        await Speech.say(null, { who: "husband", text: pick(L.morning) || "Good morning!", face: "joy", replies: (LINES.morning_reply || {}).replies || ["Good morning!"] });
+        await Speech.say(null, { who: "husband", text: pick(L.morning), face: "joy", replies: LINES[FRAME_LINES.morningReply].replies });
         const watching = companion.mode === "window" && !companion.flight;
-        if (watching) wait(0.9).then(() => { if (companion.mode === "window") { companion.joy = 0.35; showEmote("magpie", "heart"); } });
+        if (watching) wait(0.9).then(() => { if (companion.mode === "window") { Magpie.joy(); showEmote("magpie", "heart"); } });
         await kiss();
         await wait(0.3);
         Husband.routine.pose("wave", "down");
@@ -512,11 +516,9 @@ const Story = (() => {
 
   async function chooseDoll(day) {
     if (S().dollDay === day && S().doll) return;
-    const id = await dollCard();
+    const id = await Cards.doll();
     State.set("doll", id);
     State.set("dollDay", day);
-    S().dollOf = { ...(S().dollOf || {}), [day]: id };
-    State.save();
     (async () => {
       Dolls.hopTo(id, "back");
       await wait(0.6);
@@ -525,43 +527,6 @@ const Story = (() => {
       Dolls.ids().filter((x) => x !== id).forEach((x, i) => Dolls.hopTo(x, "bed", i * 0.3));
     })();
     await wait(0.3);
-  }
-
-  function dollCard() {
-    return new Promise((ok) => {
-      const $ = (x) => document.getElementById(x);
-      const card = $("doll-card"), choices = $("doll-choices"), picked = $("doll-picked");
-      $("doll-ask").textContent = DOLL_TEXT.ask;
-      choices.innerHTML = "";
-      choices.classList.remove("chosen");
-      picked.classList.add("hidden");
-      let chosen = null;
-      for (const d of DOLLS) {
-        const btn = document.createElement("button");
-        const c = document.createElement("canvas");
-        c.width = c.height = 24;
-        const sp = renderDoll(d.id, "sit");
-        c.getContext("2d").drawImage(sp.canvas, Math.round(12 - sp.canvas.width / 2), 24 - sp.canvas.height);
-        const label = document.createElement("span");
-        label.textContent = d.name;
-        btn.append(c, label);
-        btn.addEventListener("click", () => {
-          if (chosen) return;
-          chosen = d.id;
-          btn.classList.add("picked");
-          choices.classList.add("chosen");
-          picked.textContent = dollText("picked", d.id);
-          picked.classList.remove("hidden");
-          Sound.hearts();
-          let closed = false;
-          const close = () => { if (closed) return; closed = true; card.onpointerdown = null; card.classList.add("hidden"); ok(d.id); };
-          setTimeout(close, 1200);
-          setTimeout(() => { if (!closed) card.onpointerdown = close; }, 250);      // a tap goes on at once
-        });
-        choices.appendChild(btn);
-      }
-      card.classList.remove("hidden");
-    });
   }
 
   async function morningAtWindow(day, d, woke = false) {
@@ -589,7 +554,7 @@ const Story = (() => {
   async function friendsWaiting(day, d) {
     await scripted(async () => { await magpieToWindow(); await tapTapTap(); });
     G.thought = waitingThought(day, d);
-    await say("friends_waiting");
+    await say(FRAME_LINES.friendsWaiting);
     G.thought = null;
   }
 
@@ -605,8 +570,9 @@ const Story = (() => {
   function waitingThought(day, d) {
     const f = (d.favors || []).find((x) => !done(`d${day}_${x.id}`));
     if (!f) return null;
+    const left = Favors.stepsLeft(f, done, `d${day}_${f.id}`);
     let found = null;
-    for (const b of f.birds || []) if (!found && typeof b.thought === "string") found = b.thought;
+    const birds = () => { for (const b of f.birds || []) if (!found && typeof b.thought === "string") found = b.thought; };
     const scan = (steps) => {
       for (const st of [].concat(steps || [])) {
         if (found || !st || typeof st !== "object") continue;
@@ -614,7 +580,7 @@ const Story = (() => {
         for (const k of ["steps", "scene", "then", "else"]) if (st[k]) scan(st[k]);
       }
     };
-    scan(f.steps);
+    if (left.resumed) { scan(left.steps); birds(); } else { birds(); scan(left.steps); }
     return found && ICONS[found] ? found : null;
   }
 
@@ -627,19 +593,19 @@ const Story = (() => {
   }
 
   function nightLines(night, words) {
-    const stars = words.filter((w) => (window.CONSTELLATIONS || []).some((c) => c.words.includes(Words.base(w)) || c.words.includes(w))).length;
-    const look = stars === 1 && LINES.new_star ? "new_star" : "new_stars";
-    if (night.lines) return [].concat(night.lines).filter((id) => id !== "new_stars" || words.length).map((id) => (id === "new_stars" ? look : id));
+    const stars = words.filter((w) => Sky.conOf(w)).length;
+    const F = FRAME_LINES, look = stars === 1 && F.newStar ? F.newStar : F.newStars;
+    if (night.lines) return [].concat(night.lines).filter((id) => id !== F.newStars || words.length).map((id) => (id === F.newStars ? look : id));
     if (night.tomorrow) return [night.tomorrow];
     return words.length ? [look] : [];
   }
   async function nightLine(line) {
     if (line && typeof line === "object") {
-      if (line.look && Sky.lookAt) { Sky.lookAt(line.look); await wait(1.2); }
+      if (line.look) { Sky.lookAt(line.look); await wait(1.2); }
       if (line.say) await say(line.say);
       return;
     }
-    if ((line === "new_stars" || line === "new_star") && Sky.lookAtNew && Sky.lookAtNew()) await wait(1.2);
+    if ((line === FRAME_LINES.newStars || line === FRAME_LINES.newStar) && Sky.lookAtNew()) await wait(1.2);
     await say(line);
   }
 
@@ -652,7 +618,7 @@ const Story = (() => {
   let askingHome = false;
   async function headHome() {
     G.hint = null; G.guide = null;
-    const T = frameTimes("goHome", { freeFor: 10, stillFor: 3 });
+    const T = frame("goHome");
     let asked = false, since = null;
     G.onMagpie = () => { if (scene.name !== "garden") return false; asked = true; askHome(); return true; };
     await until(() => {
@@ -670,33 +636,17 @@ const Story = (() => {
     if (askingHome || evening || Speech.isOpen() || scene.name !== "garden" || changingPlace) return;
     const e = epoch;
     askingHome = true;
-    const reply = await speak("head_home");
+    const reply = await speak(FRAME_LINES.headHome);
     askingHome = false;
     if (e !== epoch || evening) return;
-    const yes = ((LINES.head_home && LINES.head_home.replies) || ["Yes!"])[0];
+    const yes = LINES[FRAME_LINES.headHome].replies[0];
     if (reply === yes) endDay("garden");
-    else if (reply && LINES.head_home_later) say("head_home_later");
+    else if (reply && FRAME_LINES.headHomeLater) say(FRAME_LINES.headHomeLater);
   }
 
   function askSleep() {
     if (!started || evening || morning || busyCount || Speech.isOpen() || scene.name !== "room" || player.hidden) return;
-    const $ = (x) => document.getElementById(x);
-    const card = $("sleep-card");
-    if (!card || !card.classList.contains("hidden")) return;
-    $("sleep-card-text").textContent = UI_TEXT.sleepAsk || "Go to sleep?";
-    $("sleep-yes").textContent = UI_TEXT.sleepYes || "Yes";
-    $("sleep-no").textContent = UI_TEXT.sleepNo || "Not yet";
-    const box = $("sleep-card-icon");
-    box.innerHTML = "";
-    const c = iconFromGrid(ICONS.zzz || ICONS.star).toCanvas();
-    const img = document.createElement("img");
-    img.src = c.toDataURL(); img.className = "pixel-icon"; img.width = c.width * 4; img.height = c.height * 4;
-    box.appendChild(img);
-    const close = () => { card.classList.add("hidden"); $("sleep-yes").onclick = null; $("sleep-no").onclick = null; };
-    $("sleep-no").onclick = () => { close(); Sound.tap(700); };
-    $("sleep-yes").onclick = () => { close(); Sound.tap(900); endDay("room"); };
-    card.classList.remove("hidden");
-    Sound.tap(600);
+    Cards.sleep(() => endDay("room"));
   }
 
   function stopChains() {
@@ -704,12 +654,12 @@ const Story = (() => {
     waiters = []; listeners = []; placeWatchers = []; pending = null; busyCount = 0;
     if (current) restoreTaken(current);
     current = null;
-    Object.assign(G, { hint: null, guide: null, thought: null, onMagpie: null, onRoof: null, alone: false });
+    Object.assign(G, { hint: null, guide: null, thought: null, onMagpie: null, onRoof: null, alone: false, closeupStar: false });
     freeVisit = null; askingHome = false;
     for (const b of Wildlife.all()) { b.onReach = null; b.onTap = null; }
     if (holding()) State.set("holding", null);
     Player.stop();
-    if (companion.act) magpieAct(null);
+    if (companion.act) Magpie.act(null);
     if (Speech.isOpen()) { if (Speech.typing()) Speech.tap(); Speech.close(); }
   }
 
@@ -726,17 +676,17 @@ const Story = (() => {
     const d = DAY(day) || {};
     const finished = storyDone(day);
     const night = finished ? d.night || {} : {};
-    evening.skippable = day > 1 && !(finished && (night.hook || night.chapterEnd || night.card || night.learn));
+    evening.skippable = d.skipEvening !== false && !(finished && (night.hook || night.chapterEnd || night.card || night.learn));
     await carryHome(); live();
     if (Husband.state() !== "together") Husband.reset();
     if (Daylight.phase() !== "sunset" && Daylight.phase() !== "night") setPhase("sunset");
     if (from === "garden") {
-      G.hint = "sunset";
+      G.hint = FRAME_LINES.sunset;
       G.guide = () => (scene.name === "garden" ? { ...houseDoor() } : null);
       if (scene.name === "garden" && companion.mode !== "away" && !nearHome()) {
-        if (LINES.head_home_follow) { await say("head_home_follow"); live(); }
+        if (FRAME_LINES.headHomeFollow) { await say(FRAME_LINES.headHomeFollow); live(); }
         const eave = porchPerch(porchBench());
-        magpieFlyTo("perch", eave.x, eave.y, eave.sortY);
+        Magpie.flyTo("perch", eave.x, eave.y, eave.sortY);
       }
       await until(() => !changingPlace && ((scene.name === "garden" && nearHome()) || scene.name === "room")); live();
       G.guide = null; G.hint = null;
@@ -749,7 +699,7 @@ const Story = (() => {
       await until(() => !isMoving()); live();
       const together = Husband.state() === "together";
       if (together) Husband.routine.here();                 // (walking with her already: he's home)
-      else { await Husband.routine.comeHome(); live(); }
+      else { await Husband.routine.comeHome(frame("evening").homeIn); live(); }     // (he hurries home: DAY_FRAME.evening.homeIn)
       showSkip();
       if (!together) { Husband.says(pick(Husband.routine.lines().home)); await wait(1.3); live(); }
       if (kissInRoom) { await kiss(); live(); await wait(0.3); live(); }
@@ -763,16 +713,16 @@ const Story = (() => {
     const e = epoch, live = () => { if (e !== epoch) throw STOP; };
     if (Sky.isOpen()) Sky.close();
     await until(() => !Sky.isOpen() && !changingPlace); live();
-    if (typeof goHome === "function") goHome();
+    goHome();
     await until(() => (scene.name === "garden" || scene.name === "room") && !changingPlace); live();
   }
   const porchBench = () => findThing({ thing: "bench", near: "door" }, "garden");
-  const porchMusic = () => frameTimes("evening", { music: "lovePorch" }).music;
+  const porchMusic = () => frame("evening").music;
 
   async function porch(day, finished, night, kissFirst = false) {
     const e = epoch, live = () => { if (e !== epoch) throw STOP; };
     const bench = porchBench(), eave = porchPerch(bench);
-    const T = frameTimes("evening", { sunsetFor: 0.5, nightFalls: 2.5, nightWait: 2.8, magpieFlies: 0.8 });
+    const T = frame("evening");
     const onEave = () => companion.mode === "perch" && !companion.flight && Math.hypot(companion.px - eave.x, companion.py - eave.y) < 2;
     const sitDown = () => {
       const from = playerPixelPos();
@@ -783,7 +733,7 @@ const Story = (() => {
     };
     await scripted(async () => {
       await fadeTo(true, true); live();
-      if (typeof upClose === "function") upClose(true, false);
+      upClose(true, false);
       UI.hideBubble();
       const waiting = onEave();
       for (const t of garden().things.filter((o) => o !== bench && !o.blocks && o.y === bench.y && o.x < bench.x + bench.w && o.x + o.w > bench.x)) takeAway(t);
@@ -793,8 +743,8 @@ const Story = (() => {
         player.facing = side > 0 ? "right" : "left";
         Husband.routine.at(Math.round(p.x) + side * 13, Math.round(p.y), side > 0 ? "left" : "right");
       } else sitDown();
-      if (waiting && understands()) { magpieAt("perch", eave.x, eave.y, eave.sortY); companion.faceLeft = false; }
-      else { companion.mode = "away"; companion.flight = null; }
+      if (waiting && understands()) { Magpie.at("perch", eave.x, eave.y, eave.sortY); Magpie.face(false); }
+      else { Magpie.away(); }
       Dolls.ids().filter((id) => Dolls.where(id) === "bed").forEach((id) => Dolls.set(id, "snuggled"));
       await fadeTo(false, true); live();
       if (kissFirst) { await kiss(); live(); await wait(0.3); live(); sitDown(); }
@@ -802,13 +752,13 @@ const Story = (() => {
       else Sound.playMusic(porchMusic());
       if (!understands()) { await wait(2.4); live(); return; }      // (Day 1 before the star: the magpie isn't hers yet)
       if (!onEave()) {
-        companion.px = eave.x + 48; companion.py = eave.y - 36; companion.mode = "perch";
-        magpieFlyTo("perch", eave.x, eave.y, eave.sortY);
-        companion.faceLeft = false;
+        Magpie.from(eave.x + 48, eave.y - 36);
+        Magpie.flyTo("perch", eave.x, eave.y, eave.sortY);
+        Magpie.face(false);
         await wait(T.magpieFlies); live();
       }
-      if (typeof magpieAct === "function") magpieAct("lookUp", 2.6);          // (it points its beak up as it says it)
-      await say(night.lookUp || "d1_look_up"); live();
+      Magpie.act("lookUp", 2.6);          // (it points its beak up as it says it)
+      await say(night.lookUp || FRAME_LINES.lookUp); live();
       if (night.learn) learn(...night.learn);
       const since = State.sinceDawn();
       const closed = Sky.show(day, since.words, { bridge: skyBridge(since), porch: true });
@@ -824,8 +774,8 @@ const Story = (() => {
     }
     mark(`d${day}_sky`);
     if (understands()) {
-      await say("porch_night"); live();
-      magpieFlyTo("away", px(10), px(18));                   // (off to roost in the big tree)
+      await say(FRAME_LINES.porchNight); live();
+      Magpie.flyTo("away", px(10), px(18));                   // (off to roost in the big tree)
       await wait(0.8); live();
     }
     await scripted(async () => { await nightCards(night); live(); });
@@ -850,7 +800,7 @@ const Story = (() => {
   function showSkip() {
     const b = document.getElementById("evening-skip");
     if (!b || !evening || !evening.skippable) return;
-    b.textContent = UI_TEXT.skipEvening || "Skip";
+    b.textContent = UI_TEXT.skipEvening;
     b.classList.remove("hidden");
   }
   function hideSkip() { const b = document.getElementById("evening-skip"); if (b) b.classList.add("hidden"); }
@@ -863,7 +813,7 @@ const Story = (() => {
     document.getElementById("day-card").classList.add("hidden");
     if (Sky.isOpen()) Sky.close();
     UI.hideBubble();
-    magpieAt("away");
+    Magpie.at("away");
     const night = storyDone(day) ? (DAY(day) || {}).night || {} : {};
     if (night.learn) learn(...night.learn);
     if (!done(`d${day}_sky`)) mark(`d${day}_sky`);
@@ -886,7 +836,6 @@ const Story = (() => {
   }
 
   async function diaryPage(day) {
-    if (typeof Diary === "undefined" || !Diary || !Diary.bedtime) return;
     try { await Diary.bedtime(day); } catch (e) { setTimeout(() => { throw e; }); }
   }
 
@@ -897,14 +846,14 @@ const Story = (() => {
     hideSkip();
     await scripted(async () => {
       await fadeTo(true, true); live();
-      if (typeof upClose === "function") upClose(false, false);    // (the porch was up close: tomorrow the garden is as she likes it)
+      upClose(false, false);    // (the porch was up close: tomorrow the garden is as she likes it)
       if (Sky.isOpen()) Sky.close();
       UI.hideBubble();
       const bed = findThing("bed", "room");
       placeHer("room", bedFront(bed), "right");
       const h = hisSpot(bed);
       Husband.routine.at(h.x, h.y, "left");
-      companion.mode = "away"; companion.flight = null;
+      Magpie.away();
       State.set("phase", "night");
       Daylight.set("night", 0);
       if (Sound.musicStatus().name !== porchMusic()) Sound.playMusic("night");     // (the porch's love theme carries on to bed)
@@ -923,7 +872,7 @@ const Story = (() => {
       if (mine) Dolls.hopTo(mine, "snuggled", 0.15);
       Sound.sleep();
       await wait(1.6); live();
-      if (storyDone(day) && ((DAY(day) || {}).night || {}).chapterEnd && typeof Backup !== "undefined") { await Backup.offer(); live(); }
+      if (storyDone(day) && ((DAY(day) || {}).night || {}).chapterEnd) { await Backup.offer(); live(); }
       await fadeTo(true, true); live();                         // the light goes out
       const again = !storyDone(day) && !!DAY(day);
       const next = again ? day : nextDay(day);
@@ -943,61 +892,7 @@ const Story = (() => {
     await showCard(`${UI_TEXT.day} ${day}`, "", 1.5, "sun", 0.3, true);
   }
 
-  async function showCard(title, sub = "", seconds = 3, icon = "star", tapAfter = 1.5, low = false) {
-    const el = document.getElementById("day-card");
-    el.classList.toggle("low", Sky.isOpen() || low);
-    document.getElementById("day-card-text").textContent = title;
-    document.getElementById("day-card-sub").textContent = sub;
-    const iconBox = document.getElementById("day-card-icon");
-    iconBox.innerHTML = "";
-    const c = iconFromGrid(ICONS[icon] || ICONS.star).toCanvas();
-    const img = document.createElement("img");
-    img.src = c.toDataURL(); img.className = "pixel-icon"; img.width = c.width * 5; img.height = c.height * 5;
-    iconBox.appendChild(img);
-    el.classList.remove("hidden");
-    let skip = null, over = false;
-    const tapped = new Promise((ok) => { skip = ok; });
-    const onTap = () => skip();
-    setTimeout(() => { if (!over) window.addEventListener("pointerdown", onTap, { once: true }); }, tapAfter * 1000);
-    await Promise.race([wait(seconds), tapped]);
-    over = true;
-    window.removeEventListener("pointerdown", onTap);
-    el.classList.add("hidden");
-  }
-
-  function nameTheMagpie() {
-    return new Promise((ok) => {
-      const card = document.getElementById("name-card");
-      const input = document.getElementById("name-input");
-      const choices = document.getElementById("name-choices");
-      const portrait = document.getElementById("name-portrait");
-      Speech.sizePortrait(portrait);
-      const g = portrait.getContext("2d");
-      g.imageSmoothingEnabled = false;
-      g.clearRect(0, 0, 64, 64);
-      g.drawImage(renderPortrait("magpie", "curious"), 0, 0);
-      input.value = "";
-      choices.innerHTML = "";
-      for (const n of MAGPIE_NAMES) {
-        const b = document.createElement("button");
-        b.textContent = n;
-        b.addEventListener("click", () => { input.value = n; Sound.tap(700); });
-        choices.appendChild(b);
-      }
-      const okButton = document.getElementById("name-ok");
-      okButton.textContent = "✓";
-      const finish = () => {
-        const name = input.value.trim().slice(0, 12) || MAGPIE_NAMES[0];
-        card.classList.add("hidden");
-        okButton.onclick = null;
-        input.blur();
-        ok(name);
-      };
-      okButton.onclick = finish;
-      input.onkeydown = (e) => { if (e.key === "Enter") finish(); };
-      card.classList.remove("hidden");
-    });
-  }
+  const showCard = (title, sub = "", seconds = 3, icon = "star", tapAfter = 1.5, low = false) => Cards.show(title, sub, seconds, icon, tapAfter, low, wait);
 
   async function playSteps(day, f, keep = true) {
     const key = f.key || `d${day}_${f.id}`;
@@ -1006,7 +901,7 @@ const Story = (() => {
     const ctx = { day, id: f.id, key, favor: f, taken: [], engaged: false, round: 0 };
     current = ctx;
     for (const b of f.birds || []) storyBird(b);
-    await Favors.run(f.steps || [], k, ctx);
+    await Favors.play(f, k, ctx);
     if (k.stale()) throw STOP;                  // (the day ended while she was in it: it waits for tomorrow)
     restoreTaken(ctx);
     G.hint = null; G.guide = null; G.thought = null; G.onMagpie = null; G.onRoof = null;
@@ -1028,6 +923,9 @@ const Story = (() => {
 
   async function playDay(day, d, woke) {
     if (done(`d${day}_sky`)) return afterTheSky(day);
+    const next = (d.favors || []).find((f) => !done(`d${day}_${f.id}`));
+    const carried = next && Favors.holdingAt(next, done, `d${day}_${next.id}`);
+    if (carried) State.set("holding", carried);
     await morningAtWindow(day, d, woke);
     await chooseDoll(day);
     const k = liveK();
@@ -1047,7 +945,7 @@ const Story = (() => {
   function favorBeat(f) {
     const b = (f.birds || []).map((x) => Wildlife.get(x.id)).find((x) => x && !x.gone && !x.act && !x.hiddenIn && !x.flight);
     if (b) Wildlife.celebrate(b);
-    if (companion.mode !== "away" && !companion.flight && !companion.act) companion.joy = 0.35;
+    if (companion.mode !== "away" && !companion.flight && !companion.act) Magpie.joy();
   }
   const QUIET_STEPS = ["bird", "thought", "emote", "guide", "world", "wait", "sound", "hint", "magpie"];
   function leadsOff(f) {
@@ -1056,7 +954,7 @@ const Story = (() => {
     return !!(first && typeof first === "object" && (first.meet || first.near) && first.lead);
   }
   async function breath() {
-    const secs = (window.DAY_FRAME || {}).breath || 3.5, since = performance.now();
+    const secs = frame("breath"), since = performance.now();
     let tapped = false;
     G.onMagpie = () => { tapped = true; return true; };
     await until(() => tapped || isMoving() || player.path.length > 0 || performance.now() - since > secs * 1000);
@@ -1069,10 +967,10 @@ const Story = (() => {
     for (let n = day - 1; n >= 1 && !last; n--) last = DAY(n);
     const thought = ((last || {}).night || {}).thought;
     const keep = thought && ICONS[thought] ? thought : null;
-    await morningAtWindow(day, { morning: [...(keep ? [{ thought: keep }] : []), "free_morning"] }, woke);
+    await morningAtWindow(day, { morning: [...(keep ? [{ thought: keep }] : []), FRAME_LINES.freeMorning] }, woke);
     await chooseDoll(day);
     await outside();
-    G.hint = "free_day";
+    G.hint = FRAME_LINES.freeDay;
     G.thought = keep;
     let visits = 0;
     const counted = new Set();
@@ -1109,12 +1007,16 @@ const Story = (() => {
 
   const K = {
     G, S, done, mark, wait, until, scripted, speak, say, learn, hold, holding, friend, setPhase, px,
-    garden, room: roomWorld, worldOf, placeOf, herFeet, near, pos, findThing, thingsOf, fits, sortAfter, guideTo,
+    garden, room: roomWorld, worldOf, placeOf, herFeet, near, pos, placed, findThing, thingsOf, fits, sortAfter, guideTo,
     storyBird, lookWith, bird: (id) => Wildlife.get(id), talkTo, walkThere, emote, magpieDo, magpieFliesOff, outside,
-    listen, onPlace, takeAway, applyWorld, applyAllWorld, restoreTaken, nameTheMagpie, showCard, greetBird: (b) => greetBird(b),
-    bathing: (b) => { bathing = b || null; },
-    addEffect: (e) => { effects.push(e); return e; },
-    removeEffect: (e) => { effects = effects.filter((x) => x !== e); },
+    walkToBird: (b) => tapBird(b),
+    clearOfThings, birdBox,
+    isFriend: (species) => (S().friends || []).includes(species) || (S().bridge || []).some((x) => x.species === species),
+    listen, onPlace, takeAway, applyWorld, applyAllWorld, restoreTaken, nameTheMagpie: () => Cards.nameMagpie(), showCard, greetBird: (b) => greetBird(b),
+    landed: (p) => { const e = epoch; return new Promise((ok) => Promise.resolve(p).then((v) => { if (e === epoch) ok(v); })); },
+    bathing: (b) => Effects.setBathing(b),
+    addEffect: (e) => Effects.add(e),
+    removeEffect: (e) => Effects.remove(e),
     starFound: () => starFound,
     resetStar: () => { starFound = false; },
     current: () => current,
@@ -1122,7 +1024,7 @@ const Story = (() => {
     stale: () => false,
   };
 
-  const QUIET = ["speak", "say", "wait", "until", "scripted", "learn", "hold", "friend", "setPhase", "mark", "magpieDo", "magpieFliesOff",
+  const QUIET = ["speak", "say", "wait", "until", "landed", "scripted", "learn", "hold", "friend", "setPhase", "mark", "magpieDo", "magpieFliesOff",
     "outside", "emote", "nameTheMagpie", "showCard", "talkTo", "walkThere", "applyWorld", "applyAllWorld", "restoreTaken", "takeAway"];
   function liveK(e = epoch) {
     const k = Object.create(K);
@@ -1141,7 +1043,7 @@ const Story = (() => {
     placeHer("room", { x: bed.x + 2, y: bed.y + 2 }, "down");
     player.hidden = true;
     bed.variant = 1;
-    companion.mode = "away";
+    Magpie.away();
     Dolls.ids().forEach((id) => Dolls.set(id, "snuggled"));
     Daylight.set(State.get().phase === "night" ? "night" : "morning", 0);
   }
@@ -1161,23 +1063,6 @@ const Story = (() => {
 
   function update(dt, time) {
     waiters = waiters.filter((w) => { if (w.test()) { w.ok(); return false; } return true; });
-    for (const e of effects) {
-      if (e.kind === "persimmon" || e.kind === "candy" || e.kind === "fall") {
-        if (e.y < e.ground || e.vy < 0) {
-          e.vy += 260 * dt;
-          e.y = Math.min(e.ground, e.y + e.vy * dt);
-          if (e.vx) e.x += e.vx * dt;
-          if (e.y >= e.ground && e.vy > 0) { e.vy = e.vy > 60 ? -e.vy * 0.3 : 0; e.vx = (e.vx || 0) * 0.5; }
-        }
-      } else if (e.kind === "drift" && !e.landed) {
-        e.t = (e.t || 0) + dt;
-        e.y = Math.min(e.ground, e.y + (e.speed || 14) * dt);
-        const k = e.x1 === undefined ? 0 : Math.min(1, (e.y - (e.y0 || 0)) / Math.max(1, e.ground - (e.y0 || 0)));
-        e.x = e.x0 + ((e.x1 === undefined ? e.x0 : e.x1) - e.x0) * k + Math.sin(e.t * 1.7) * (e.sway || 7) * (1 - k * 0.7);
-        if (e.y >= e.ground) { e.landed = true; e.x = e.x1 === undefined ? e.x : e.x1; }
-      }
-    }
-    effects = effects.filter((e) => e.kind !== "fishInBeak" || time < e.until);
   }
 
   function reached(t) {
@@ -1202,7 +1087,7 @@ const Story = (() => {
   }
 
   function tapBird(bird) {
-    const greets = bird.greets || (Daylight.phase() === "sunset" && bird.id && bird.id.startsWith("f-"));
+    const greets = bird.greets === true || (bird.greets === "sunset" && Daylight.phase() === "sunset");
     if (greets && !bird.onTap && !bird.onReach) {
       activity++;
       greetBird(bird);
@@ -1235,12 +1120,8 @@ const Story = (() => {
   function cancelPending() { pending = null; }
 
   function tapEffect(gx, gy) {
-    const c = effects.find((e) => e.kind === "candy" && Math.abs(e.x - gx) < 7 && Math.abs(e.y - 2 - gy) < 7);
-    if (!c) return false;
+    if (!Effects.tap(gx, gy)) return false;
     activity++;
-    if (c.y >= c.ground) c.vy = -40;
-    Sound.tap(900);
-    magpieSays(THINGS.candy.name);
     return true;
   }
 
@@ -1253,175 +1134,52 @@ const Story = (() => {
   function changedPlace(from, to) {
     if (from === "garden" && to !== "garden" && companion.mode === "perch" && !companion.flight) {
       perchedOutside = { x: companion.px, y: companion.py, sortY: companion.sortY, faceLeft: companion.faceLeft };
-      companion.mode = "away";
+      Magpie.away();
     } else if (to === "garden" && perchedOutside) {
       const p = perchedOutside;
       perchedOutside = null;
-      if (companion.mode === "away" && !companion.flight) { magpieAt("perch", p.x, p.y, p.sortY); companion.faceLeft = p.faceLeft; }
+      if (companion.mode === "away" && !companion.flight) { Magpie.at("perch", p.x, p.y, p.sortY); Magpie.face(p.faceLeft); }
     }
-    if (to === "garden" && from === "room" && companion.mode === "away" && !G.alone && (done("d1_star") || S().day > 1)) {
+    if (to === "garden" && from === "room" && companion.mode === "away" && !G.alone && understands()) {
       const f = herFeet();
-      companion.px = f.x - 110; companion.py = f.y - 70;
+      Magpie.awayAt(f.x - 110, f.y - 70);
     }
     for (const fn of placeWatchers.slice()) fn(from, to);
   }
 
-  const understands = () => !started || S().day > 1 || done("d1_star");
+  let understandFavor;
+  function understands() {
+    if (!started) return true;
+    if (understandFavor === undefined) {
+      understandFavor = null;
+      for (const n of Object.keys(window.DAYS || {}).map(Number).sort((a, b) => a - b)) {
+        const f = (DAY(n).favors || []).find((x) => x.understand);
+        if (f) { understandFavor = { day: n, key: `d${n}_${f.id}` }; break; }
+      }
+    }
+    const u = understandFavor;
+    return !u || S().day > u.day || done(u.key);
+  }
 
-  const closeupOptions = () => ({ star: started && S().day === 1 && !done("d1_star") && !starFound });
+  const closeupOptions = () => ({ star: started && !!G.closeupStar && !starFound });
 
   const inFavor = () => !!(current && current.engaged);
 
-  function items() {
-    const out = [];
-    for (const e of effects) {
-      if (e.kind === "persimmon") out.push({ bottom: e.ground + 0.1, draw: () => ctx.drawImage(iconFromGridCached("persimmon"), Math.round(e.x - 3), Math.round(e.y - 6)) });
-      if (e.kind === "candy") out.push({ bottom: e.ground + 0.1, draw: () => ctx.drawImage(candySprite(e.color), Math.round(e.x - 2), Math.round(e.y - 4)) });
-      if (e.kind === "drift" && e.landed && e.icon === "crowFeather") {
-        const f = prop("feather", 3);                     // (the crow's feather lying on the ground)
-        out.push({ bottom: e.ground + 0.1, draw: () => ctx.drawImage(f.canvas, Math.round(e.x - f.ax), Math.round(e.y - f.ay)) });
-        continue;
-      }
-      if (e.kind === "fall" || (e.kind === "drift" && e.landed)) {
-        const c = iconFromGridCached(e.icon);
-        if (c) out.push({ bottom: e.sortY !== undefined ? e.sortY : e.ground + 0.1, draw: () => ctx.drawImage(c, Math.round(e.x - c.width / 2), Math.round(e.y - c.height)) });
-      }
-    }
-    const bath = bathing;
-    if (bath && WORLD.things.includes(bath)) {
-      out.push({ bottom: bath.footY + 0.45, draw: () => {
-        drawBathFront(ctx, bath.footX, bath.footY, bath.variant & 1);
-        const splashing = Wildlife.all().some((b) => b.act && b.act.name === "bathe" && Math.abs(b.x - bath.footX) < 14 && Math.abs(b.y - bath.footY) < 20)
-          || (companion.act && companion.act.name === "bathe");
-        if (splashing) drawBathSplash(ctx, bath.footX, bath.footY, Math.floor(performance.now() / 125));
-      } });
-    }
-    return out;
-  }
-
-  function drawWorld(ctx, time) {
-    for (const e of effects) {
-      if (e.kind === "fishInBeak" && !e.bird.gone) {
-        const h = Wildlife.headTop(e.bird);
-        const fish = iconFromGridCached("fish");
-        ctx.save();
-        const x = h.x + (e.bird.faceLeft ? -16 : 8), y = h.y + 4;
-        if (e.bird.faceLeft) { ctx.translate(x + fish.width, y); ctx.scale(-1, 1); ctx.drawImage(fish, 0, 0); } else ctx.drawImage(fish, x, y);
-        ctx.restore();
-      }
-    }
-    if (scene.name === "garden") {
-      for (const g of glows) Daylight.drawLight(ctx, g.t.footX + (g.dx || 0), g.t.footY + (g.dy || 0), (g.r || 5) + Math.round(Math.sin(time * 2) * 1), g.color || "starlight", g.amount || 0.8);
-      for (const e of effects) if (e.glow) Daylight.drawLight(ctx, e.x, e.y - 3, 5 + Math.round(Math.sin(time * 2) * 1), "starlight", 0.8);
-      if (companion.carry === "persimmon" && !(companion.mode === "away" && !companion.flight)) {
-        const h = companionHeadTop();
-        Daylight.drawLight(ctx, h.x + (companion.faceLeft ? -8 : 8), h.y + 12, 5, "starlight", 0.7);
-      }
-    }
-  }
-
   function drawOverlay(ctx, time) {
-    if (scene.name === "garden") {
-      for (const e of effects) {
-        if (e.kind !== "drift" || e.landed) continue;
-        if (e.icon === "crowFeather" && typeof drawCrowFeatherFalling === "function") {
-          drawCrowFeatherFalling(ctx, e.x, e.y - 4, time, Daylight.nightAmount() > 0.5);
-          if (e.glint && Math.sin(time * 5) > 0.1) { const g = cueIcon("sparkle"); ctx.drawImage(g, Math.round(e.x + 5 - g.width / 2), Math.round(e.y - 12 - g.height / 2)); }
-          continue;
-        }
-        const c = iconFromGridCached(e.airIcon || e.icon);
-        if (c) ctx.drawImage(c, Math.round(e.x - c.width / 2), Math.round(e.y - c.height));
-      }
-    }
-    if (G.thought && companion.mode !== "away" && !companion.flight) {
-      const h = companionHeadTop(), her = playerPixelPos(), side = h.x < her.x + 8 ? -1 : 1;
-      const room = h.y - (17 * CUE + 2) - camera.y;
-      const low = room < 2 ? 2 - room : 0;
-      const at = low ? { side, dx: side * 11 * CUE, dy: low } : Wildlife.thoughtSpot(h.x, h.y, side);
-      Wildlife.drawThoughtAt(ctx, h.x + (low ? at.dx : 0), h.y + (low ? at.dy : 0), G.thought, time, at.side, low ? 0 : at.dx, low ? 0 : at.dy);
-    }
-    const guides = [].concat((G.guide && G.guide()) || []);
-    for (const g of guides) {
-      if (!((scene.name === "room" || scene.name === "garden") && (scene.name === "room") === !!g.room && (!Speech.isOpen() || g.talking) && !Sky.isOpen())) continue;
-      const icon = cueIcon("sparkle");
-      const bob = Math.round(Math.sin(time * 3) * 2) * CUE;
-      if (guides.length === 1 && edgeCue(ctx, g, "sparkle", time)) continue;
-      if (g.edgeOnly) continue;
-      const blink = g.soft ? Math.sin(time * 2.2) > -0.2 : true;
-      if (blink) ctx.drawImage(icon, Math.round(g.x - icon.width / 2), Math.round(g.y - icon.height - 4 * CUE + bob));
-    }
-  }
-
-  function edgeCue(ctx, g, name, time) {
-    const icon = cueIcon(name);
-    const bob = Math.round(Math.sin(time * 3) * 2) * CUE;
-    const m = 12 * CUE, safe = safeEdges(), k = (window.devicePixelRatio || 1) / scale;   // k: game pixels per point
-    const x0 = camera.x + m + safe.left * k, x1 = camera.x + canvas.width - m - safe.right * k;
-    const y0 = camera.y + m + icon.height + safe.top * k, y1 = camera.y + canvas.height - m - safe.bottom * k;
-    const sprite = g.top !== undefined;
-    const hi = sprite ? g.top : g.y - icon.height - 4 * CUE, lo = sprite ? (g.bottom !== undefined ? g.bottom : g.y) : g.y - 4 * CUE;
-    const seen = Math.min(lo, camera.y + canvas.height - safe.bottom * k) - Math.max(hi, camera.y + safe.top * k);
-    const off = g.x < camera.x + safe.left * k - 6 || g.x > camera.x + canvas.width - safe.right * k + 6
-      || seen < (sprite ? Math.min(6 * CUE, (lo - hi) / 2) : lo - hi);
-    if (!off) return false;
-    const x = Math.max(x0, Math.min(x1, g.x));
-    let y = Math.max(y0, Math.min(y1, g.y));
-    if (x === x0 || x === x1) y = Math.max(camera.y + canvas.height * 0.3, Math.min(camera.y + canvas.height * 0.7, y));   // (the middle of a side edge)
-    const gear = document.getElementById("menu-button").getBoundingClientRect();
-    const side = document.getElementById("husband-button");
-    const box = side && !side.classList.contains("hidden") ? side.getBoundingClientRect() : null;
-    const row = [...document.querySelectorAll(".corner-button")].filter((b) => !b.classList.contains("hidden")).map((b) => b.getBoundingClientRect());
-    const left = Math.min(gear.left, box ? box.left : Infinity, ...row.map((r) => r.left)), bottom = box ? Math.max(gear.bottom, box.bottom) : gear.bottom;
-    const at = gameToScreen(x, y - icon.height);
-    if (at.x > left - 12 && at.y < bottom + 6) y += (bottom + 6 - at.y) * (window.devicePixelRatio || 1) / scale;
-    const a = Math.atan2(g.y - y, g.x - x), dir = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8;
-    const arrow = arrowSprite(dir);
-    const sx = Math.round(x - icon.width / 2), sy = Math.round(y - icon.height);
-    ctx.drawImage(icon, sx, sy + bob);
-    const ax = Math.round(x + Math.cos(dir * Math.PI / 4) * 8 * CUE - arrow.width / 2);
-    const ay = Math.round(y - icon.height / 2 + Math.sin(dir * Math.PI / 4) * 8 * CUE - arrow.height / 2);
-    ctx.drawImage(arrow, ax, ay + bob);
-    return true;
-  }
-
-  const ARROW_STRAIGHT = ["X...", "XX..", "XXX.", "XXXX", "XXX.", "XX..", "X..."];   // pointing right
-  const ARROW_SLANT = ["....X", "...XX", "..XXX", ".XXXX", "XXXXX"];                  // pointing down-right
-  const arrowCache = {};
-  function arrowSprite(dir) {
-    const key = dir + "/" + CUE;
-    if (arrowCache[key]) return arrowCache[key];
-    const turn = (g) => [...g[0]].map((_, x) => g.map((row) => row[x]).reverse().join(""));
-    let grid = dir % 2 ? ARROW_SLANT : ARROW_STRAIGHT;
-    for (let i = 0; i < Math.floor(dir / 2); i++) grid = turn(grid);
-    if (CUE > 1) grid = scale2xGrid(grid);
-    const b = new PixelBuffer(grid[0].length, grid.length);
-    grid.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "X") b.set(x, y, "starlight"); }));
-    return (arrowCache[key] = outline(b).toCanvas());
-  }
-
-  const iconCache = {};
-  const cueIcon = (name) => iconCache[name + "/cue" + CUE] || (iconCache[name + "/cue" + CUE] = iconFromGrid(ICONS[name], CUE > 1).toCanvas());
-  function iconFromGridCached(name) {
-    if (!ICONS[name]) return null;
-    return iconCache[name] || (iconCache[name] = iconFromGrid(ICONS[name]).toCanvas());
-  }
-  const candyCache = {};
-  function candySprite(color) {
-    if (candyCache[color]) return candyCache[color];
-    const b = new PixelBuffer(5, 5);
-    for (const [x, y] of [[2, 0], [0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [1, 2], [2, 2], [3, 2], [1, 3], [3, 3]]) b.set(x, y, rampFor(color)[1]);
-    b.set(2, 1, "cream");
-    return (candyCache[color] = outline(b).toCanvas());
+    Effects.drawOverlay(ctx, time);                 // (something drifting down through the air: js/effects.js)
+    if (G.thought && companion.mode !== "away" && !companion.flight) Cues.thought(ctx, G.thought, time);
+    Cues.guides(ctx, [].concat((G.guide && G.guide()) || []), time);
   }
 
   return {
     prepare, start, update, reached, tapBird, tapMagpie, tapRoof, tapEffect, stopped, cancelPending, closeupTap, changedPlace,
-    understands, closeupOptions, inFavor, items, drawWorld, drawOverlay, edgeCue,
+    understands, closeupOptions, inFavor, drawOverlay,
     busy: () => busyCount > 0,
     wants: (what) => (what === "magpie" ? !!G.onMagpie : !!what && listeners.some((l) => l.type === what.type)),
     inRoutine: () => !!evening || morning,
     evening: () => (evening ? { ...evening } : null),
     endDay: (from = scene.name === "room" ? "room" : "garden") => endDay(from),
+    frame,
     skip: () => skipEvening(),
     play: (steps) => Favors.run(steps, K, { day: S().day, id: "test", key: "test", taken: [], engaged: false }),
     inView: () => ({ guides: [].concat((G.guide && G.guide()) || []), birds: ((current && current.favor && current.favor.birds) || []).map((b) => b.id), thought: !!G.thought }),

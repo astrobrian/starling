@@ -175,7 +175,8 @@ const Sky = (() => {
     if (moonAt.key === key) return moonAt.spot;
     const r = MOON_R * CUE, skyW = lay.skyW;
     const horizon = lay.h - 12 * CUE, top = 14 * CUE;
-    const tx = skyW * (0.5 + ((info.az - 180) / 180) * 0.46);
+    const vega = lay.real.find((q) => q.id === "vega"), west = vega ? vega.x + r + 30 * CUE : 0;
+    const tx = Math.max(west, skyW * (0.5 + ((info.az - 180) / 180) * 0.46));
     const ty = horizon - (Math.max(0, info.alt) / 60) * (horizon - top);
     const points = [], segs = [], boxes = [];
     for (const c of shows) {
@@ -197,7 +198,7 @@ const Sky = (() => {
       const k = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2));
       return Math.hypot(x - ax - dx * k, y - ay - dy * k);
     };
-    const ok = (x, y) => points.every(([px, py, d]) => Math.hypot(px - x, py - y) >= d)
+    const ok = (x, y) => x >= west && points.every(([px, py, d]) => Math.hypot(px - x, py - y) >= d)
       && segs.every((s) => segD(x, y, s) >= r + 4 * CUE)
       && boxes.every((b) => x + r + 2 < b.l || x - r - 2 > b.r || y + r + 2 < b.t || y - r - 2 > b.b);
     const tries = [];
@@ -213,7 +214,7 @@ const Sky = (() => {
   function bridgeFromSave() {
     if (typeof State === "undefined") return { birds: [], friends: [] };
     const s = State.get();
-    const birds = typeof State.bridgeBirds === "function" ? State.bridgeBirds() : s.bridge;
+    const birds = State.bridgeBirds();
     const days = s.friendDay || {};
     const friends = (s.friends || []).filter((sp) => !isBridgeBird(sp)).map((sp) => ({ species: sp, day: days[sp] || 0 }));
     return { birds: birds || [], friends };
@@ -327,7 +328,7 @@ const Sky = (() => {
     clock = 0; labels = []; tour = []; press = null; panGoal = null; whisperI = 0; sparks = []; hideBubbleDone = false; reviewStops = null; pace = 1;
     whisperAt = TILT_SECONDS + 0.4;
     skyDay = day || (typeof State !== "undefined" && State.get().day) || 1;
-    moonInfo = typeof Moon !== "undefined" ? Moon.forDay(skyDay) : null;
+    moonInfo = Moon.forDay(skyDay);
     setBridge(opts.bridge || bridgeFromSave());
     const learned = State.get().learned;
     born = {};
@@ -409,7 +410,7 @@ const Sky = (() => {
     for (const b of [...Object.values(born), ...bridgeBorn.birds, ...bridgeBorn.friends]) if (b > 0 && b <= clock && b > clock - dt) Sound.twinkle();
     labels = labels.filter((l) => l.until > clock);
     sparks = sparks.filter((s) => clock - s.at < 0.45);
-    lift += (liftGoal - lift) * Math.min(1, dt * 8);
+    lift += (liftGoal - lift) * Math.min(1, dt * liftRate);
     if (review && !hideBubbleDone && tilt > 0) { hideBubbleDone = true; UI.hideBubble(); }
     if (open && tiltGoal === 0 && tilt === 0) {
       open = false;
@@ -420,26 +421,44 @@ const Sky = (() => {
 
   const amount = () => tilt * tilt * (3 - 2 * tilt);
 
+  const ROOM_BOX = 4, ROOM_TOP = 2;              // (game pixels between a star and the box, and the screen's top)
+  const liftRate = 8;
   function keepAbove(boxTop) {
     liftGoal = 0;
     if (!open || review || boxTop === null || boxTop === undefined || !L) return;
-    const a = focusSpan(L), b = freshSpan(L);
-    let span = a || b;
-    if (a && b) {
-      const both = [Math.min(a[0], b[0]), Math.max(a[1], b[1])];
-      if (both[1] + 10 * CUE - boxTop <= both[0] - 12 * CUE) span = both;
+    const own = focus === "@new" ? null : focusSpan(L), fresh = freshSpan(L);
+    const fits = (s) => s[1] + ROOM_BOX - boxTop <= s[0] - ROOM_TOP;
+    let span = own || fresh;
+    if (own && fresh) { const both = [Math.min(own[0], fresh[0]), Math.max(own[1], fresh[1])]; if (fits(both)) span = both; }
+    if (!span) return;
+    const least = Math.max(0, span[1] + ROOM_BOX - boxTop), most = Math.max(0, span[0] - ROOM_TOP);
+    liftGoal = Math.min(least, most);
+    if (least > most) {
+      const GLOW = 2 * CUE;
+      for (let pass = 0; pass < 4; pass++) {
+        const peek = Object.keys(born).map((w) => L.star[w]).filter((st, i, all) => st && born[st.word] > 0 && st.x - pan > 0 && st.x - pan < L.w
+          && st.y - starHalf(st) - GLOW - liftGoal < boxTop && st.y + starHalf(st) + GLOW - liftGoal > boxTop);
+        if (!peek.length) break;
+        liftGoal = Math.max(0, Math.min(...peek.map((st) => st.y - starHalf(st) - GLOW - boxTop)));
+      }
     }
-    if (span) liftGoal = Math.max(0, Math.min(span[1] + 10 * CUE - boxTop, span[0] - 12 * CUE));
   }
+  const starHalf = (s) => (!lit(s.word) ? 1.5 : s.bright || CUE > 1 ? 7 : 3.5);
   function freshSpan(lay) {
-    const ys = Object.keys(born).filter((w) => born[w] > 0 && lay.star[w] && lay.star[w].x - pan > 0 && lay.star[w].x - pan < lay.w).map((w) => lay.star[w].y);
-    return ys.length ? [Math.min(...ys) - 8 * CUE, Math.max(...ys) + 6 * CUE] : null;
+    const on = Object.keys(born).filter((w) => born[w] > 0 && lay.star[w] && lay.star[w].x - pan > 0 && lay.star[w].x - pan < lay.w).map((w) => lay.star[w]);
+    return on.length ? [Math.min(...on.map((s) => s.y - starHalf(s))), Math.max(...on.map((s) => s.y + starHalf(s)))] : null;
   }
   function focusSpan(lay) {
-    if (focus === "@bridge") return lay.bridge ? [lay.bridge.topY - 6 * CUE, lay.bridge.footY + 6 * CUE] : null;
-    if (focus === "@moon") { const m = moonSpot(lay, moonInfo); return m ? [m.y - m.r, m.y + m.r] : null; }
+    if (focus === "@bridge") {
+      const a = lay.bridge;
+      if (!a) return null;
+      let t = a.topY - 3 * CUE, b = a.footY + 3 * CUE;
+      for (const s of bridgeSpots(lay)) { t = Math.min(t, s.y - (s.kind === "birds" ? 4 : 2) * CUE); b = Math.max(b, s.y + (s.kind === "birds" ? 6 : 2) * CUE); }
+      return [t, b];
+    }
+    if (focus === "@moon") { const m = moonSpot(lay, moonInfo); return m ? [m.y - m.r - 1, m.y + m.r + 1] : null; }
     const c = lay.con[focus];
-    return c && c.stars.length ? [c.box.t, c.box.b] : null;
+    return c && c.stars.length ? [Math.min(...c.stars.map((s) => s.y - starHalf(s))), Math.max(...c.stars.map((s) => s.y + starHalf(s)))] : null;
   }
   const shiftY = (h) => Math.round(amount() * h) - h - Math.round(lift);
 
@@ -722,15 +741,15 @@ const Sky = (() => {
     const p = people.getContext("2d"), d = dolls.getContext("2d");
     const inGallery = typeof PLAYER_SPRITES === "undefined";
     const hers = (inGallery ? renderPlayer() : PLAYER_SPRITES).up[0];
-    const his = typeof renderHusband === "function" ? renderHusband().up[0] : null;
+    const his = renderHusband().up[0];
     const top = 4;
     if (hers) p.drawImage(hers, 0, 0, 16, 26, 4, top, 16, 26);
     if (his) p.drawImage(his, 0, 0, 16, 26, 21, top, 16, 26);
     p.fillStyle = (window.PLAYER_LOOK && PLAYER_LOOK.skin) ? paletteColor(PLAYER_LOOK.skin) : PALETTE.skin || "#F6D2B8";
     p.fillRect(PORCH_MID - 2, top + 19, 4, 2);
-    const doll = typeof Dolls !== "undefined" ? Dolls.carried() || (inGallery ? "triceratops" : null) : null;
+    const doll = Dolls.carried() || (inGallery ? "triceratops" : null);
     if (doll) Dolls.drawOnBack(d, doll, 4, top + 4, "up", false);
-    if (window.HUSBAND && HUSBAND.doll && typeof Dolls !== "undefined") Dolls.drawOnBack(d, HUSBAND.doll.id, 21, top + 4, "up", false);
+    if (window.HUSBAND && HUSBAND.doll) Dolls.drawOnBack(d, HUSBAND.doll.id, 21, top + 4, "up", false);
     const bench = new PixelBuffer(W - 2, 12);
     bench.rect(0, 1, W - 2, 3, "wood");
     bench.rect(0, 6, W - 2, 3, "wood");
@@ -773,14 +792,14 @@ const Sky = (() => {
     const p = people.getContext("2d"), d = dolls.getContext("2d");
     const inGallery = typeof PLAYER_SPRITES === "undefined";
     const hers = (inGallery ? renderPlayer() : PLAYER_SPRITES).up[0];
-    const his = typeof renderHusband === "function" ? renderHusband().up[0] : null;
+    const his = renderHusband().up[0];
     if (hers) p.drawImage(hers, 2, 4);
     if (his) p.drawImage(his, 19, 4);
     p.fillStyle = (window.PLAYER_LOOK && PLAYER_LOOK.skin) ? paletteColor(PLAYER_LOOK.skin) : PALETTE.skin || "#F6D2B8";
     p.fillRect(17, 23, 3, 2);
-    const doll = typeof Dolls !== "undefined" ? Dolls.carried() || (inGallery ? "triceratops" : null) : null;
+    const doll = Dolls.carried() || (inGallery ? "triceratops" : null);
     if (doll) Dolls.drawOnBack(d, doll, 2, 4, "up", false);
-    if (window.HUSBAND && HUSBAND.doll && typeof Dolls !== "undefined") Dolls.drawOnBack(d, HUSBAND.doll.id, 19, 4, "up", false);
+    if (window.HUSBAND && HUSBAND.doll) Dolls.drawOnBack(d, HUSBAND.doll.id, 19, 4, "up", false);
     const c = document.createElement("canvas");
     c.width = W; c.height = H;
     const g = c.getContext("2d");
@@ -854,9 +873,7 @@ const Sky = (() => {
     }
   }
 
-  function whoName(who) {
-    return who === "magpie" ? State.get().magpieName || (BIRDS.magpie && BIRDS.magpie.name) : who === "husband" ? (window.HUSBAND && HUSBAND.name) : who && BIRDS[who] ? BIRDS[who].name : "";
-  }
+  const whoName = (who) => (who === "magpie" || who === "husband" || (who && BIRDS[who]) ? Speech.nameOf(who) : "");
   function learnedNote(word) {
     const d = State.get().learned[word];
     if (!d) return "";
@@ -864,6 +881,15 @@ const Sky = (() => {
     return name ? UI_TEXT.learnedWith.replace("{day}", d).replace("{who}", name) : UI_TEXT.learnedOn.replace("{day}", d);
   }
   const pictureOf = (word) => { const i = Words.info(word); return i && i.picture && !i.icon ? i.picture + " " : ""; };
+  function wordIcon(word, points) {
+    const info = Words.info(word), grid = info && info.icon && window.ICONS && ICONS[info.icon];
+    if (!grid) return null;
+    const dpr = window.devicePixelRatio || 1, c = iconFromGrid(grid).toCanvas();
+    const k = Math.max(1, Math.round((points * dpr) / c.height));
+    c.className = "pixel-icon";
+    Object.assign(c.style, { display: "inline-block", width: `${(c.width * k) / dpr}px`, height: `${(c.height * k) / dpr}px`, verticalAlign: "-0.12em", marginRight: "0.3em" });
+    return c;
+  }
 
   function whisper(lay) {
     if (!review || press || clock < whisperAt || labels.length || tourMoving() || cardOpen()) return;
@@ -882,26 +908,29 @@ const Sky = (() => {
   function labelSpots(w, h) {
     const lay = layout(w, h);
     whisper(lay);
-    return labels.filter((l) => l.from <= clock).map((l) => {
-      if (l.real) { const r = lay.real.find((x) => x.id === l.real); return r && { text: r.name, sub: r.korean || "", x: r.x - pan, y: r.y - 9, sx: r.x - pan, sy: r.y, r: 9 }; }
-      if (l.moon) {
-        const m = moonSpot(lay, moonInfo), T = window.MOON_TEXT || { name: "moon", korean: "달" };
-        return m && { text: `${moonInfo.text.emoji} ${T.name}`, sub: `${T.korean} · ${moonInfo.text.korean}`, x: m.x - pan, y: m.y - m.r - 2, sx: m.x - pan, sy: m.y, r: m.r + 2 };
-      }
-      if (l.bridge) {
-        const s = bridgeSpots(lay, true).find((q) => q.kind === l.bridge.kind && q.i === l.bridge.i);
-        if (!s) return null;
-        const b = window.BIRDS && BIRDS[s.e.species], name = b ? b.name : s.e.species;
-        const day = s.e.day && (review || l.tapped) ? UI_TEXT.learnedOn.replace("{day}", s.e.day) : "";       // (when it's born tonight, just its name)
-        const text = s.kind === "birds" ? name.toLowerCase() : name;
-        const sub = [s.kind === "birds" ? s.e.name : "", day].filter(Boolean).join(" · ");
-        return { text, sub, x: s.x - pan, y: s.y - 5, sx: s.x - pan, sy: s.y, r: 5 };
-      }
-      const s = lay.star[l.word];
+    return labels.filter((l) => l.from <= clock).map((l) => { const q = spotOfLabel(l, lay); return q && { ...q, tapped: !!l.tapped }; })
+      .filter(Boolean).map((q) => (lift >= 0.5 ? { ...q, y: q.y - Math.round(lift), sy: q.sy - Math.round(lift) } : q));      // (with the sky, moved up over the speech box)
+  }
+  function spotOfLabel(l, lay) {
+    if (l.real) { const r = lay.real.find((x) => x.id === l.real); return r && { text: r.name, sub: r.korean || "", x: r.x - pan, y: r.y - 9, sx: r.x - pan, sy: r.y, r: 9 }; }
+    if (l.moon) {
+      const m = moonSpot(lay, moonInfo), T = window.MOON_TEXT || { name: "moon", korean: "달" };
+      return m && { text: `${moonInfo.text.emoji} ${T.name}`, sub: `${T.korean} · ${moonInfo.text.korean}`, x: m.x - pan, y: m.y - m.r - 2, sx: m.x - pan, sy: m.y, r: m.r + 2 };
+    }
+    if (l.bridge) {
+      const s = bridgeSpots(lay, true).find((q) => q.kind === l.bridge.kind && q.i === l.bridge.i);
       if (!s) return null;
-      const r = s.bright || CUE > 1 ? 9 : 5;                   // (half the star, and a little)
-      return { text: l.unknown ? UI_TEXT.notYet : pictureOf(l.word) + l.word, sub: l.quiet || l.unknown || !review ? "" : learnedNote(l.word), x: s.x - pan, y: s.y - r, sx: s.x - pan, sy: s.y, r, unknown: !!l.unknown };
-    }).filter(Boolean).map((q) => (lift >= 0.5 ? { ...q, y: q.y - Math.round(lift), sy: q.sy - Math.round(lift) } : q));      // (with the sky, moved up over the speech box)
+      const b = window.BIRDS && BIRDS[s.e.species], name = b ? b.name : s.e.species;
+      const day = s.e.day && (review || l.tapped) ? UI_TEXT.learnedOn.replace("{day}", s.e.day) : "";       // (when it's born tonight, just its name)
+      const text = s.kind === "birds" ? name.toLowerCase() : name;
+      const sub = [s.kind === "birds" ? s.e.name : "", day].filter(Boolean).join(" · ");
+      return { text, sub, x: s.x - pan, y: s.y - 5, sx: s.x - pan, sy: s.y, r: 5 };
+    }
+    const s = lay.star[l.word];
+    if (!s) return null;
+    const r = s.bright || CUE > 1 ? 9 : 5;                   // (half the star, and a little)
+    const icon = !l.unknown && Words.info(l.word) && Words.info(l.word).icon ? l.word : null;       // (its pixel picture: wordIcon)
+    return { text: l.unknown ? UI_TEXT.notYet : pictureOf(l.word) + l.word, icon, sub: l.quiet || l.unknown || !review ? "" : learnedNote(l.word), x: s.x - pan, y: s.y - r, sx: s.x - pan, sy: s.y, r, unknown: !!l.unknown };
   }
 
   function nameSpots(w, h) {
@@ -969,9 +998,10 @@ const Sky = (() => {
     const most = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
     if (!most) return false;
     const onScreen = (w) => L.star[w].x - pan > 10 && L.star[w].x - pan < L.w - 10;
-    if (fresh.filter((w) => conOf(w) === most).every(onScreen)) return false;
-    lookAt(most);
-    return true;
+    const glides = !fresh.filter((w) => conOf(w) === most).every(onScreen);
+    if (glides) lookAt(most);
+    focus = "@new";
+    return glides;
   }
 
   function nudge(dir) {
@@ -1020,6 +1050,8 @@ const Sky = (() => {
       const known = !!State.get().learned[s.word];
       b.className = known ? "known" : "unknown";
       b.textContent = known ? pictureOf(s.word) + s.word : "✧";
+      const icon = known && wordIcon(s.word, 20);
+      if (icon) b.prepend(icon);
       b.addEventListener("click", () => {
         note.classList.remove("complete");
         list.querySelectorAll("button").forEach((x) => x.classList.toggle("picked", x === b));
@@ -1046,7 +1078,8 @@ const Sky = (() => {
 
   return {
     show: (...a) => { forgetTogether(); return show(...a); },
-    close, update, draw, tap, starAt, amount, labelSpots, nameSpots, edges, settled, openCard, pairBox, keepAbove,
+    close, update, draw, tap, starAt, amount, labelSpots, nameSpots, edges, settled, openCard, pairBox, keepAbove, wordIcon,
+    conOf,
     gliding: () => open && (clock < glideUntil || tourMoving() || !!press),
     press: pressAt, drag: dragTo, release: releaseAt, cancelPress, nudge, lookAt, lookAtNew,
     moon: () => (open ? moonInfo : null),
@@ -1067,7 +1100,7 @@ const Sky = (() => {
       promise = []; review = false; porch = false; clock = 1;
       bridge = { birds: [], friends: [] }; setBridge(opts.bridge);
       bridgeBorn = { birds: bridge.birds.map(() => -10), friends: bridge.friends.map(() => -10) };
-      moonInfo = opts.moonDay !== undefined && typeof Moon !== "undefined" ? Moon.forDay(opts.moonDay) : null;
+      moonInfo = opts.moonDay !== undefined ? Moon.forDay(opts.moonDay) : null;
       const lay = layout(w, h), from = opts.from || 0, to = opts.width ? from + opts.width : lay.skyW;
       for (let x = from; x < to; x += w) {
         pan = x; panGoal = x; tour = [];
@@ -1080,7 +1113,7 @@ const Sky = (() => {
       tilt = 0; panGoal = null;
     },
     bridgeBox: (w, h) => { const a = layout(w, h).bridge; return a && { l: a.x0, r: a.x1, cx: a.cx, slots: a.slots.length, twinkles: a.twinkles.length }; },
-    moonSpot: (w, h, day) => (typeof Moon === "undefined" ? null : moonSpot(layout(w, h), Moon.forDay(day))),
+    moonSpot: (w, h, day) => moonSpot(layout(w, h), Moon.forDay(day)),
     pairSprite: () => { forgetTogether(); return together(); },
     birdStarSprite: (species, frame = 0) => birdStar(species, 1, frame),          // (for the gallery)
     porchSprite: () => { forgetTogether(); return onThePorch(); },
@@ -1106,7 +1139,7 @@ const Sky = (() => {
         }
         if (lay.bridge.twinkles.length < 24) out.push(`only ${lay.bridge.twinkles.length} spots for twinkles by the bridge`);
       }
-      if (typeof Moon !== "undefined") for (const n of window.MOON_NIGHTS || []) {
+      for (const n of window.MOON_NIGHTS || []) {
         const info = Moon.forDay(n.day);
         if (info.up && !moonSpot(lay, info)) out.push(`Day ${n.day}: no clear spot for the moon`);
       }

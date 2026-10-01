@@ -1,20 +1,29 @@
 
+function pixelIcon(name, size, { pixel = false } = {}) {
+  const dpr = window.devicePixelRatio || 1, c = iconFromGrid(ICONS[name]).toCanvas();
+  const k = Math.max(1, Math.round(pixel ? size * dpr : (size * dpr) / c.height));     // (device pixels in one of its pixels)
+  c.style.width = (c.width * k) / dpr + "px";
+  c.style.height = (c.height * k) / dpr + "px";
+  c.className = "pixel-icon";
+  return c;
+}
+
+function withKorean(el, text, korean) {
+  el.replaceChildren();
+  String(text || "").split(/\{(\w+)\}/).forEach((part, i) => {
+    if (i % 2 === 0) { if (part) el.append(part); }
+    else el.append(ICONS[part] ? pixelIcon(part, 17) : `{${part}}`);
+  });
+  if (korean) { const k = document.createElement("small"); k.className = "korean"; k.textContent = korean; el.appendChild(k); }
+  return el;
+}
+
 const UI = (() => {
   const $ = (id) => document.getElementById(id);
-
-  function iconImage(name, scale) {
-    const c = iconFromGrid(ICONS[name]).toCanvas();
-    const img = new Image();
-    img.src = c.toDataURL();
-    img.width = c.width * scale;
-    img.height = c.height * scale;
-    img.className = "pixel-icon";
-    img.alt = "";
-    return img;
-  }
+  const iconImage = (name, points) => pixelIcon(name, points, { pixel: true });
 
   function setup({ onMenu, onBack, onLookCloser, zoom, onZoom }) {
-    $("menu-button").appendChild(iconImage("menu", 3));
+    $("menu-button").appendChild(iconImage("menu", 2));
     $("menu-button").setAttribute("aria-label", UI_TEXT.menu);
     $("menu-button").addEventListener("click", onMenu);
 
@@ -37,31 +46,34 @@ const UI = (() => {
       $("zoom-out-button").classList.toggle("at-end", zoom() === ZOOMS[ZOOMS.length - 1]);
     };
     const tapped = (id, f) => $(id).addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); f(); });
-    $("zoom-in-button").appendChild(iconImage("zoomIn", 3));
+    $("zoom-in-button").appendChild(iconImage("zoomIn", 2));
     $("zoom-in-button").setAttribute("aria-label", UI_TEXT.zoomIn);
-    $("zoom-out-button").appendChild(iconImage("zoomOut", 3));
+    $("zoom-out-button").appendChild(iconImage("zoomOut", 2));
     $("zoom-out-button").setAttribute("aria-label", UI_TEXT.zoomOut);
     tapped("zoom-in-button", () => zoomTo(-1));
     tapped("zoom-out-button", () => zoomTo(1));
     showZoomEnds();
-    const musicIcons = { on: iconImage("musicOn", 3), off: iconImage("musicOff", 3) };
+    const musicIcons = { on: iconImage("musicOn", 2), off: iconImage("musicOff", 2) };
     const showMusic = () => {
       const on = Sound.musicOn();
       $("music-button").replaceChildren(on ? musicIcons.on : musicIcons.off);
       $("music-button").setAttribute("aria-label", on ? UI_TEXT.musicOnLabel : UI_TEXT.musicOffLabel);
+      $("music-volume").value = on ? Math.round(Sound.settings.music * 100) : 0;
+      $("music-label").classList.toggle("off", !on);
     };
     tapped("music-button", () => { Sound.start(); Sound.setMusicOn(!Sound.musicOn()); Sound.tap(700); showMusic(); });
+    window.addEventListener("starling-music", showMusic);     // (Settings' music slider turns it off and on too)
     showMusic();
-    $("music-volume").value = Sound.settings.music * 100;
     $("sound-volume").value = Sound.settings.sound * 100;
     $("music-volume").addEventListener("input", (e) => Sound.setVolume("music", e.target.value / 100));
+    $("music-volume").addEventListener("change", (e) => Sound.setVolume("music", e.target.value / 100, true));    // (let go: the volume to come back to)
     $("sound-volume").addEventListener("change", (e) => Sound.setVolume("sound", e.target.value / 100));
     $("settings-done").addEventListener("click", () => $("settings").classList.add("hidden"));
     $("settings").addEventListener("pointerdown", (e) => {
       if (e.target === $("settings")) $("settings").classList.add("hidden");
     });
 
-    $("back-button").appendChild(iconImage("back", 3));
+    $("back-button").appendChild(iconImage("back", 2));
     $("back-button").addEventListener("click", onBack);
     $("look-button").appendChild(iconImage("magnifier", 3));
     $("look-button").addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); onLookCloser(); });
@@ -115,11 +127,7 @@ const UI = (() => {
     const w = el.offsetWidth, h = el.offsetHeight;
     const rightEdge = () => {
       let r = window.innerWidth - 8;
-      for (const b of document.querySelectorAll("#menu-button, .side-button, .corner-button")) {
-        if (b.classList.contains("hidden") || !b.getClientRects().length) continue;
-        const q = b.getBoundingClientRect();
-        if (y < q.bottom + 4 && y + h > q.top - 4) r = Math.min(r, q.left - 6);
-      }
+      for (const q of buttonRects()) if (y < q.bottom + 4 && y + h > q.top - 4) r = Math.min(r, q.left - 6);     // (js/side-buttons.js)
       return r;
     };
     let y = point.y - h - 10;

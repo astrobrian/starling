@@ -136,7 +136,7 @@ function makeIntroPictures(W, H) {
   }
 
   const HH = Math.round(H * 0.74);
-  const home = makeTitleScene(W, HH, { magpie: false, fireflyMaxX: W * 0.42, moonX: 0.7, day: 0 });     // (the night before Day 1: its moon)
+  const home = makeTitleScene(W, HH, { magpie: false, fireflyMaxX: W * 0.42, day: 0 });     // (the night before Day 1: its moon, placed as on the title)
   const dawn = makeTitleScene(W, HH, { morning: true, magpie: false });
   const veil = (src, light) => {
     if (light !== "night") return src;

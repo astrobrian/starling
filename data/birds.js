@@ -13,6 +13,7 @@ window.BIRDS = {
     wingTip: "sheen",
     tail: { length: 8, color: "sheen" },
     beak: "ink",
+    beakShine: "giwa",
     legs: "plum",
     blush: true,
     chirp: "chatter",
@@ -25,7 +26,7 @@ window.BIRDS = {
     headR: 4.6, bodyRx: 4.4, bodyRy: 3.9,
     body: "bark", cap: "chestnut", head: "snow", cheek: "snow", cheekSpot: "ink", bib: "ink",
     chest: "stone", belly: "path", wing: "wood", wingBar: "snow", wingTip: "bark",
-    tail: { length: 4, color: "bark" }, beak: "ink", legs: "clay",
+    tail: { length: 4, color: "bark" }, beak: "ink", legs: "clay",          // (a July tail is worn and plain: no buff edges)
     chirp: "tweet", chirpPitch: 3000,
   },
   tit: {
@@ -48,7 +49,7 @@ window.BIRDS = {
     name: "Parrotbill", korean: "뱁새", shape: "songbird",
     headR: 4.2, bodyRx: 3.8, bodyRy: 3.4, beakLen: 1.6, beakH: 2.2,
     body: "wood", cap: "parrotbill", head: "parrotbill", cheek: "parrotbill",
-    chest: "parrotbill", belly: "path", wing: "wood", wingTip: "bark",
+    chest: "parrotbill", belly: "path", wing: "wood", wingTip: "bark", sleepFace: "doveBreast",   // (asleep: a soft pinkish patch by the closed eye, its own face a shade lighter; never cream "spectacles", the white-eye's look)
     tail: { length: 6, color: "wood" }, beak: "stone", legs: "stone",
     chirp: "tweet", chirpPitch: 4000,
   },

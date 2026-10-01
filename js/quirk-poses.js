@@ -126,8 +126,9 @@ function hisLying(look) {
   b.stamp(body, bx, by);
   b.stamp(head, 0, 0);
   const out = outline(b);
-  const S = RAMPS.snow[1];
-  for (const y of [20, 22]) out.set(y + bx, 15 - 8 + by, S);
+  const shirt = rampFor(look.shirt);
+  for (let y = 18; y <= 23; y++) if (shirt.includes(out.get(y + bx, 7 + by))) out.set(y + bx, 7 + by, shirt[0]);
+  out.set(21 + bx, 7 + by, RAMPS.snow[1]);
   drawHisFrontFace(out, look, true);
   return out.toCanvas();
 }

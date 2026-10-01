@@ -10,9 +10,13 @@ const Speech = (() => {
     husband: (window.HUSBAND && HUSBAND.voice) || { chirp: "hum", pitch: 330 },
   });
 
+  function nameOf(who) {
+    if (who === "magpie") return State.get().magpieName || BIRDS.magpie.name;
+    if (who === "husband") return (window.HUSBAND && HUSBAND.name) || "";
+    return BIRDS[who] ? BIRDS[who].name : who;
+  }
   function fill(text) {
-    const name = State.get().magpieName || "Magpie";
-    return text.replace(/\{name\}/g, name);
+    return text.replace(/\{name\}/g, nameOf("magpie"));
   }
 
   function pieces(text) {
@@ -42,7 +46,9 @@ const Speech = (() => {
     hint.innerHTML = "";
     const pic = document.createElement("div");
     pic.className = "hint-picture";
-    if (info && info.icon && ICONS[info.icon]) pic.appendChild(pixelIcon(info.icon, 40));
+    const form = piece.toLowerCase();
+    const icon = info && info.icon && (form !== Words.base(piece) && ICONS[form] ? form : info.icon);
+    if (icon && ICONS[icon]) pic.appendChild(pixelIcon(icon, 40));      // (js/ui.js)
     else pic.textContent = info ? info.picture : "✨";
     const word = document.createElement("div");
     word.className = "hint-word";
@@ -68,13 +74,6 @@ const Speech = (() => {
     showHint.timer = setTimeout(() => hint.classList.add("hidden"), 2600);
   }
 
-  function pixelIcon(name, size) {
-    const c = iconFromGrid(ICONS[name]).toCanvas();
-    const k = Math.max(2, Math.round(size / c.height));
-    Object.assign(c.style, { width: `${c.width * k}px`, height: `${c.height * k}px`, imageRendering: "pixelated", display: "inline-block" });
-    return c;
-  }
-
   const met = {};
   function metWord(word) {
     const b = Words.base(word);
@@ -96,8 +95,7 @@ const Speech = (() => {
     text.innerHTML = "";
     replies.innerHTML = "";
     const narrator = line.who === "narrator";
-    $("speech-name").textContent = narrator ? "" : line.who === "magpie" ? fill("{name}") : line.who === "husband" ? (window.HUSBAND && HUSBAND.name) || ""
-      : (BIRDS[line.who] ? BIRDS[line.who].name : line.who);
+    $("speech-name").textContent = narrator ? "" : nameOf(line.who);
     if (!narrator) drawPortrait($("portrait"), line.who, line.face || "happy");
     box.classList.toggle("narrator", narrator);
     box.classList.remove("hidden");
@@ -230,7 +228,7 @@ const Speech = (() => {
     tap();
   });
 
-  return { say, tap, lightUp, close, sizePortrait, isOpen: () => open, typing: () => !!typing, speaker: () => (current ? current.who : null), met: metWord,
+  return { say, tap, lightUp, close, sizePortrait, nameOf, isOpen: () => open, typing: () => !!typing, speaker: () => (current ? current.who : null), met: metWord,
     pieces, wordSpan, showHint, fill,
     lineText: () => (current && current.text && !current.chirps && current.who !== "narrator" ? fill(current.text) : null) };
 })();

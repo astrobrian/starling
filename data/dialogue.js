@@ -49,6 +49,7 @@ window.LINES = {
   d2_find_this:     { who: "magpie", text: "The feather! Look! There, by the flowers!", face: "curious" },
   d2_found:         { who: "sparrow", text: "My feather! Thank you, friend!", face: "joy" },
   d2_lead_bulbul:   { who: "magpie", text: "Look! A new bird! Follow me!", face: "happy" },
+  d2_lead_bulbul_back: { who: "magpie", text: "Look! Bulbul is back! Follow me!", face: "happy" },   // (its favor picking up after a break, once it's her friend: never "A new bird!" again)
   d2_want:          { who: "bulbul", text: "I am so hungry! I want a plum!", face: "hungry", korean: { want: "먹고 싶어" } },   // in the persimmon tree: the little green persimmons are too hard; thought bubble: a plum
   d2_berry:         { who: "magpie", text: "Hungry? Have a berry!", face: "happy" },
   d2_no_berry:      { who: "bulbul", text: "No, no! I want a plum!", face: "hungry", korean: { want: "먹고 싶어" } },
@@ -64,6 +65,7 @@ window.LINES = {
   d3_window:        { who: "magpie", text: "For your window! So pretty!", face: "happy" },
   d3_come_out:      { who: "magpie", text: "Come out! I am in my persimmon tree!", face: "happy" },   // by its little green persimmon (glowing: the promise), next to her house
   d3_lead_tit:      { who: "magpie", text: "Look! A little bird! Follow me!", face: "happy" },
+  d3_lead_tit_back: { who: "magpie", text: "Look! The feeder is full! Follow me!", face: "happy" },     // (picking the favor up again: the tit is her friend now)
   d3_empty:         { who: "tit", text: "Oh, hello! The feeder is empty!", face: "sad", replies: ["Oh no!", "?"], whatsThat: true },   // the tit pecks at the bare tray
   d3_empty_this:    { who: "magpie", text: "The feeder! Empty! No seeds in it!", face: "curious" },   // after either reply: it stands on the feeder, peers into the tray and shakes its head
   d3_seeds:         { who: "magpie", text: "Seeds! Look! By your house, by the door!", face: "happy" },
@@ -114,6 +116,7 @@ window.LINES = {
   d5_happy:         { who: "magpie", text: "Good morning! Not so hot now! I am so happy!", face: "joy", replies: ["I am happy too!", "?"], explain: "d5_happy_this" },
   d5_happy_this:    { who: "magpie", text: "Happy! Like this!", face: "joy" },            // a hop, and hearts
   d5_lead:          { who: "magpie", text: "Look! A little bird! Follow me!", face: "happy" },
+  d5_lead_back:     { who: "magpie", text: "Look! Our little friends! Follow me!", face: "happy" },     // (picking the party up again: many parrotbills, her friends now)
   d5_small:         { who: "magpie", text: "Oh! So small! Hello, little one!", face: "curious", replies: ["So small!", "?"], explain: "d5_small_this" },
   d5_small_this:    { who: "magpie", text: "Small! A little bird!", face: "happy" },      // it points its wing at the parrotbill
   d5_lost:          { who: "parrotbill", text: "I lost my friends!", face: "sad" },
@@ -168,6 +171,21 @@ window.LINES = {
   d5_giggle:        { who: "grebe", text: "Hee hee!", face: "happy" },
   d5_again:         { who: "grebe", text: "Again! Find me!", face: "happy" },
   d5_done:          { who: "grebe", text: "Hee hee! Thank you, friend!", face: "happy" },
+};
+
+window.FRAME_LINES = {
+  friendsWaiting: "friends_waiting",   // at her window, on a morning that goes on with yesterday's favors
+  morningReply: "morning_reply",       // her answers when he says good morning (its replies)
+  freeMorning: "free_morning",         // at her window, on a free day (after the last day that's written)
+  freeDay: "free_day",                 // what the magpie says again on a free day, when she taps it
+  headHome: "head_home",               // "Go home now?" after the day's favors (its first reply starts the evening)
+  headHomeLater: "head_home_later",    // her other reply ("Not yet!"): "OK! Let's play more!"
+  headHomeFollow: "head_home_follow",  // after "Yes!", as it flies ahead toward her house
+  sunset: "sunset",                    // what it says again on the way home, when she taps it
+  lookUp: "d1_look_up",                // "Look up!" on the porch (a day's night can have its own: lookUp)
+  newStars: "new_stars",               // once tonight's new stars are out ("new_stars" in a night's lines means this)
+  newStar: "new_star",                 // the same, when only one new star came out tonight
+  porchNight: "porch_night",           // after the stars, before it flies off to roost in the big tree
 };
 
 window.MAGPIE_NAMES = ["Kkachi", "Bori", "Dubu", "Mochi"];

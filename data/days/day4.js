@@ -2,8 +2,6 @@
 { // (this day's own names stay inside: see day1.js)
 window.DAYS = window.DAYS || {};
 
-const D4_BENCH = { thing: "bench", near: { thing: "house" } };
-
 DAYS[4] = {
   chapter: 1,
   weather: "hot",
@@ -25,7 +23,7 @@ DAYS[4] = {
       { scene: [{ emote: "exclaim" }, { thought: "sweet" }, { wait: 0.4 }] },
       "d4_save",
       { thought: null },
-      { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, guide: true, hint: "d4_breakfast" },
+      { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, keep: true, guide: true, hint: "d4_breakfast" },
       { magpie: "away" },
     ],
   },
@@ -35,7 +33,7 @@ DAYS[4] = {
       { guide: { thing: "breakfast", place: "room", dy: -14 }, talking: true },
       "d4_breakfast",
       { guide: null },
-      { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, guide: true, hint: "d4_breakfast" },
+      { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, keep: true, guide: true, hint: "d4_breakfast" },
     ] },
   ],
 
@@ -44,25 +42,22 @@ DAYS[4] = {
       id: "share",
       noon: true,
       world: {
-        during: [{ place: "room", add: { type: "breakfast", x: 8, y: 3, variant: 16 }, unlessHolding: "tray" }],
-        after: [{ today: true, add: { type: "breakfast", x: 11, y: 6, variant: 15 } }],
+        during: [{ place: "room", add: { type: "breakfast", at: { thing: "desk", place: "room" }, variant: 16 }, unlessHolding: "tray" }],
+        after: [{ today: true, add: { type: "breakfast", at: SPOTS.yardBench, variant: 15 } }],
       },
       steps: [
-        { when: { holding: "tray" }, else: [
-          { fetch: "tray", from: { thing: "breakfast", place: "room" }, take: true, guide: true, hint: "d4_breakfast" },
-        ] },
-        { give: "tray", to: D4_BENCH, guide: { ...D4_BENCH, dy: -16 }, hint: "d4_breakfast" },
-        { world: [{ add: { type: "breakfast", x: 11, y: 6, variant: 0 } }] },
+        { give: "tray", to: SPOTS.yardBench, guide: { ...SPOTS.yardBench, dy: -16 }, hint: "d4_breakfast" },
+        { world: [{ add: { type: "breakfast", at: SPOTS.yardBench, variant: 0 } }] },
         { scene: [
-          { bird: "sparrow1", species: "sparrow", at: [11.2, 8.75], does: "ground", range: 0.2, shy: false, flyIn: true, faceLeft: false },
+          { bird: "sparrow1", species: "sparrow", at: { ...SPOTS.yardBench, dx: -12.8, dy: 28 }, does: "ground", range: 0.2, shy: false, flyIn: true, faceLeft: false },
           { wait: 0.3 },
-          { bird: "sparrow2", species: "sparrow", at: [11.9, 9.05], does: "ground", range: 0.2, shy: false, flyIn: true, faceLeft: false },
-          { bird: "dove1", species: "dove", at: [6.6, 3.2], borrow: true },
-          { bird: "dove2", species: "dove", at: [9.4, 3.2], borrow: true },
-          { bird: "dove1", flyTo: [13.3, 8.35] },
+          { bird: "sparrow2", species: "sparrow", at: { ...SPOTS.yardBench, dx: -1.6, dy: 32.8 }, does: "ground", range: 0.2, shy: false, flyIn: true, faceLeft: false },
+          { bird: "dove1", species: "dove", at: SPOTS.roofLeft, borrow: true },
+          { bird: "dove2", species: "dove", at: SPOTS.roofRight, borrow: true },
+          { bird: "dove1", flyTo: { ...SPOTS.yardBench, dx: 20.8, dy: 21.6 } },
           { wait: 0.3 },
-          { bird: "dove2", flyTo: [13.95, 8.75] },
-          { magpie: { perch: { ...D4_BENCH, dx: 20, dy: 12 } } },
+          { bird: "dove2", flyTo: { ...SPOTS.yardBench, dx: 31.2, dy: 28 } },
+          { magpie: { perch: { ...SPOTS.yardBench, dx: 20, dy: 12 } } },
           { wait: 1.4 },
           { bird: "dove1", face: "left" }, { bird: "dove2", face: "left" },
         ] },
@@ -72,14 +67,14 @@ DAYS[4] = {
         { tap: "breakfast", hint: "d4_rice" },
         { world: [{ thing: "breakfast", variant: 1 }] },
         { thought: null, on: "sparrow1" }, { thought: null, on: "sparrow2" },
-        { moment: "peckAt", birds: ["sparrow1", "sparrow2"], bits: { type: "riceGrains", x: 11.06, y: 8.2 }, learn: ["share", "rice"] },
+        { moment: "peckAt", birds: ["sparrow1", "sparrow2"], bits: { type: "riceGrains", at: { ...SPOTS.yardBench, dx: -7.04, dy: 35.2 } }, learn: ["share", "rice"] },
         "d4_rice_yum",
         { thought: "bread", on: "dove1" }, { thought: "bread", on: "dove2" },
         "d4_bread",
         { tap: "breakfast", hint: "d4_bread" },
         { world: [{ thing: "breakfast", variant: 3 }] },
         { thought: null, on: "dove1" }, { thought: null, on: "dove2" },
-        { moment: "peckAt", birds: ["dove1", "dove2"], bits: { type: "breadCrumbs", x: 13.1, y: 7.95 }, learn: ["bread"] },
+        { moment: "peckAt", birds: ["dove1", "dove2"], bits: { type: "breadCrumbs", at: { ...SPOTS.yardBench, dx: 25.6, dy: 31.2 } }, learn: ["bread"] },
         { thought: "sweet" },
         "d4_sweet",
         { tap: "breakfast", hint: "d4_sweet" },
@@ -95,7 +90,7 @@ DAYS[4] = {
         { act: "drink", learn: ["cup", "drink"] },
         "d4_shared",
         { magpie: "follow" },
-        { scene: [{ bird: "dove1", flyTo: [6.6, 3.2], sortAfter: "house" }, { wait: 0.3 }, { bird: "dove2", flyTo: [9.4, 3.2], sortAfter: "house" }, { wait: 1.2 }] },
+        { scene: [{ bird: "dove1", flyTo: SPOTS.roofLeft, sortAfter: "house" }, { wait: 0.3 }, { bird: "dove2", flyTo: SPOTS.roofRight, sortAfter: "house" }, { wait: 1.2 }] },
       ],
     },
 
@@ -103,13 +98,13 @@ DAYS[4] = {
       id: "bath",
       breath: true,
       birds: [
-        { id: "dove1", species: "dove", at: [6.6, 3.2], borrow: true },
-        { id: "dove2", species: "dove", at: [9.4, 3.2], borrow: true },
+        { id: "dove1", species: "dove", at: SPOTS.roofLeft, borrow: true },
+        { id: "dove2", species: "dove", at: SPOTS.roofRight, borrow: true },
       ],
       world: {
         during: [{ thing: "birdBath", variant: 1 }],
         after: [
-          { add: { type: "feather", x: 6.4, y: 19.2, variant: 1 } },
+          { add: { type: "feather", at: { thing: "birdBath", dx: 6.4, dy: 3.2 }, variant: 1 } },
           { today: true, birds: [
             { id: "dove1", species: "dove", at: { thing: "birdBath", dx: -11, dy: -12 }, does: "perch", sortAfter: "birdBath", faceLeft: false },
             { id: "dove2", species: "dove", at: { thing: "birdBath", dx: 11, dy: -12 }, does: "perch", sortAfter: "birdBath", faceLeft: true },
@@ -149,6 +144,15 @@ DAYS[4] = {
         { restore: true },
         { bird: "dove1", thought: null },
         "d4_full",
+        { resume: "full", steps: [
+          { world: [{ thing: "birdBath", variant: 0 }] },
+          { bird: "dove1", flyTo: { thing: "birdBath", dx: -17, dy: 1 }, thought: null },
+          { bird: "dove2", flyTo: { thing: "birdBath", dx: -6, dy: 11 } },
+          { near: { thing: "birdBath" }, reach: 2.6, stop: 0, lead: "d4_full", onlyIfFar: true,
+            magpie: { perch: { thing: "birdBath", dx: 7, dy: 14 } }, tapWalks: ["dove1", "dove2", "magpie"], guide: true },
+          { bird: "dove1", face: "right" }, { bird: "dove2", face: "right" },
+          { magpie: "follow" },
+        ] },
         { moment: "drinkAt", at: "birdBath", birds: ["dove1", "dove2"], spots: [[-11, -12], [11, -12]], wait: false },
         { wait: 1.4 },
         "d4_drink",
@@ -156,7 +160,7 @@ DAYS[4] = {
         { moment: "bathe", in: "birdBath", birds: ["dove1"], magpie: true, lines: { during: "d4_me_too" }, learn: ["bath"] },
         { scene: [
           { act: "flap", on: "magpie", seconds: 0.8 },
-          { world: [{ add: { type: "feather", x: 6.4, y: 19.2, variant: 1 } }] },
+          { world: [{ add: { type: "feather", at: { thing: "birdBath", dx: 6.4, dy: 3.2 }, variant: 1 } }] },
           { sound: "splash" },
           { wait: 0.4 },
         ] },

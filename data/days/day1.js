@@ -8,6 +8,8 @@ DAYS[1] = {
 
   wakeUp: "magpie",
 
+  skipEvening: false,
+
   morning: [
     "d1_window",
     "d1_window_again",
@@ -18,6 +20,7 @@ DAYS[1] = {
   favors: [
     {
       id: "star",
+      understand: true,          // once it's done, the magpie's chirps are words (before: only chirps)
       steps: [
         { moment: "fallenStar", patch: 0 },
         { say: "d1_star", learn: ["star"] },
@@ -52,10 +55,10 @@ DAYS[1] = {
     {
       id: "tree",
       birds: [
-        { id: "sparrow", species: "sparrow", at: { thing: "bigTree", dx: -20, dy: -19 }, does: "perch", sortAfter: "bigTree", faceLeft: false },
+        { id: "sparrow", species: "sparrow", at: SPOTS.sparrowBranch, does: "perch", sortAfter: "bigTree", faceLeft: false },
       ],
       world: { after: [{ today: true, birds: [
-        { id: "sparrow", species: "sparrow", at: { thing: "bigTree", dx: -20, dy: -19 }, does: "perch", sortAfter: "bigTree", faceLeft: false },
+        { id: "sparrow", species: "sparrow", at: SPOTS.sparrowBranch, does: "perch", sortAfter: "bigTree", faceLeft: false },
       ] }] },
       steps: [
         { near: "bigTree", reach: 3.2, lead: "d1_follow",

@@ -46,6 +46,7 @@ const Backup = (() => {
   const stored = (k) => { try { return localStorage.getItem("starling." + k); } catch (e) { return null; } };
   const fresh = (k, v) => { if (k !== "progress" || v === null) return v; try { return JSON.stringify({ ...JSON.parse(v), savedAt: Date.now() }); } catch (e) { return v; } };
   const now = () => { const p = State.get(); return { day: p.day, stars: Object.keys(p.learned || {}).length, friends: p.friends || [] }; };
+  const isEmpty = (sum) => !sum || (sum.day <= 1 && !sum.stars && !(sum.friends || []).length);
 
   async function readCode(text) {
     const flat = (text || "").replace(/\s+/g, "");
@@ -65,11 +66,7 @@ const Backup = (() => {
     return null;
   }
 
-  function words(id, text, korean) {
-    const el = $(id);
-    el.textContent = text;
-    if (korean) { const k = document.createElement("small"); k.className = "korean"; k.textContent = korean; el.appendChild(k); }
-  }
+  const words = (id, text, korean) => withKorean($(id), text, korean);
   const note = (text, korean) => words("backup-note", text || "", text ? korean : null);
 
   async function save() {
@@ -90,21 +87,31 @@ const Backup = (() => {
   }
 
   let pending = null;           // the backup she pasted, waiting for her Yes
-  function load() {
+  let onBack = null;            // where Back leads, for this card
+  function load(text = "", noteWords = null, opts = {}) {
     reset();
+    const pasted = typeof text === "string" && !!text.trim();
     words("backup-title", T().backupLoadTitle, T().backupLoadTitleKorean);
-    words("backup-help", T().backupLoadHelp, T().backupLoadHelpKorean);
-    $("backup-text").value = "";
+    words("backup-help", pasted ? T().backupLoadPasted : T().backupLoadHelp, pasted ? T().backupLoadPastedKorean : T().backupLoadHelpKorean);
+    $("backup-text").value = pasted ? text : "";
+    if (noteWords) note(noteWords[0], noteWords[1]);
     $("backup-text").readOnly = false;
     $("backup-go").textContent = T().backupLoadGo;
     $("backup-go").classList.remove("hidden");
     $("backup-done").textContent = T().backupBack;
+    onBack = opts.back || null;
     const before = summaryOf(stored("progress.previous"));
-    if (before) {
+    if (before && !isEmpty(before)) {
       words("backup-undo", T().backupUndo.replace("{day}", before.day).replace("{stars}", before.stars), T().backupUndoKorean);
       $("backup-undo").classList.remove("hidden");
     }
     $("backup-card").classList.remove("hidden");
+  }
+
+  async function paste(text, noteWords = null, opts = {}) {
+    const got = await readCode(text);
+    if (got && isEmpty(now())) { pending = got; bringIn(); return; }
+    load(got ? text : "", got ? null : noteWords, opts);
   }
 
   async function loadPasted() {
@@ -113,6 +120,7 @@ const Backup = (() => {
     if (!text.trim()) { note(T().backupEmpty, T().backupEmptyKorean); return; }
     const got = await readCode(text);
     if (!got) { note(T().backupBad, T().backupBadKorean); return; }
+    if (isEmpty(now())) { pending = got; bringIn(); return; }
     pending = { ...got, askedAt: Date.now() };
     $("backup-card").classList.add("asking");
     words("backup-title", T().backupSure, T().backupSureKorean);
@@ -153,11 +161,27 @@ const Backup = (() => {
     if (!pending) return;
     State.freeze();
     try {
-      for (const k of ["progress", "morning"]) { const v = stored(k); if (v) localStorage.setItem("starling." + k + ".previous", v); }
+      if (!isEmpty(summaryOf(stored("progress")))) State.keepPrevious();
+      saved.set("pastedHere", true);           // (her stars are here: the title's "Paste my stars" can rest)
       for (const k of KEYS) localStorage.removeItem("starling." + k);
       for (const [k, v] of Object.entries(pending.saved)) localStorage.setItem("starling." + k, fresh(k, v));
     } catch (e) { /* private mode */ }
+    cameIn(pending);
     location.href = location.pathname;
+  }
+
+  const CAME = "starling.broughtIn";
+  function cameIn(sum) {
+    try { sessionStorage.setItem(CAME, JSON.stringify({ day: sum.day, stars: sum.stars, friends: sum.friends || [] })); } catch (e) { /* private mode */ }
+  }
+  function broughtIn() {
+    try {
+      const sum = JSON.parse(sessionStorage.getItem(CAME) || "null");
+      sessionStorage.removeItem(CAME);
+      return sum;
+    } catch (e) {
+      return null;
+    }
   }
 
   function undo() {
@@ -172,6 +196,7 @@ const Backup = (() => {
           if (here !== null) localStorage.setItem("starling." + k + ".previous", here); else localStorage.removeItem("starling." + k + ".previous");
         }
       } catch (e) { /* private mode */ }
+      cameIn(before);
       location.href = location.pathname;
     };
     const text = T().backupUndoSure.replace("{day}", before.day).replace("{stars}", before.stars);
@@ -184,6 +209,7 @@ const Backup = (() => {
 
   function reset() {
     pending = null;
+    onBack = null;
     $("backup-card").classList.remove("asking");
     $("backup-compare").innerHTML = "";
     $("backup-undo").classList.add("hidden");
@@ -193,6 +219,18 @@ const Backup = (() => {
   function close() {
     $("backup-card").classList.add("hidden");
     reset();
+  }
+
+  function back() {
+    const then = onBack;
+    close();
+    if (then) then();
+  }
+
+  function backIfEmpty() {
+    if (!onBack || $("backup-card").classList.contains("hidden") || pending || $("backup-text").value.trim()) return false;
+    back();
+    return true;
   }
 
   function offer() {
@@ -223,15 +261,15 @@ const Backup = (() => {
     $("backup-save").addEventListener("click", () => { $("settings").classList.add("hidden"); save(); });
     $("backup-load").addEventListener("click", () => { $("settings").classList.add("hidden"); load(); });
     $("backup-go").addEventListener("click", loadPasted);
-    $("backup-done").addEventListener("click", close);
+    $("backup-done").addEventListener("click", back);
     $("backup-undo").addEventListener("click", undo);
     $("backup-text").addEventListener("input", () => {
       if (!pending) { note(""); return; }
-      const text = $("backup-text").value;
-      load();
+      const text = $("backup-text").value, b = onBack;
+      load("", null, { back: b });
       $("backup-text").value = text;
     });
   }
 
-  return { setup, save, load, offer, persist, makeCode, readCode };
+  return { setup, save, load, paste, offer, persist, makeCode, readCode, backIfEmpty, broughtIn };
 })();

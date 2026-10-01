@@ -114,7 +114,7 @@ window.ICONS = {
     ],
   },
   heat: {
-    colors: { O: "persimmon", B: "pond", W: "cream", D: "#6d9cc2" },
+    colors: { O: "#EE7383", B: "pond", W: "cream", D: "#6d9cc2" },
     bare: true,
     grid: [
       ".O..O..O.",
@@ -197,24 +197,36 @@ window.ICONS.zoomIn = {
   colors: { P: "plum" },
   bare: true,
   grid: [
-    "....PP....",
-    "....PP....",
-    "....PP....",
-    "....PP....",
-    "PPPPPPPPPP",
-    "PPPPPPPPPP",
-    "....PP....",
-    "....PP....",
-    "....PP....",
-    "....PP....",
+    ".PPP....PPP.",
+    "PPPP....PPPP",
+    "PP........PP",
+    "PP...PP...PP",
+    ".....PP.....",
+    "...PPPPPP...",
+    "...PPPPPP...",
+    ".....PP.....",
+    "PP...PP...PP",
+    "PP........PP",
+    "PPPP....PPPP",
+    ".PPP....PPP.",
   ],
 };
 window.ICONS.zoomOut = {
   colors: { P: "plum" },
   bare: true,
   grid: [
-    "PPPPPPPPPP",
-    "PPPPPPPPPP",
+    ".PPP....PPP.",
+    "PPPP....PPPP",
+    "PP........PP",
+    "PP........PP",
+    "............",
+    "...PPPPPP...",
+    "...PPPPPP...",
+    "............",
+    "PP........PP",
+    "PP........PP",
+    "PPPP....PPPP",
+    ".PPP....PPP.",
   ],
 };
 window.ICONS.musicOn = {
@@ -224,14 +236,14 @@ window.ICONS.musicOn = {
     "....PP....",
     "....PPP...",
     "....PPPP..",
-    "....P.PPP.",
-    "....P..PP.",
-    "....P...P.",
-    "....P.....",
+    "....PPPPP.",
+    "....PP.PP.",
+    "....PP..P.",
+    "....PP....",
+    "..PPPP....",
+    ".PPPPP....",
+    ".PPPPP....",
     "..PPP.....",
-    ".PPPP.....",
-    ".PPPP.....",
-    "..PP......",
   ],
 };
 window.ICONS.musicOff = {
@@ -241,14 +253,14 @@ window.ICONS.musicOff = {
     "PP..NN....",
     "PPP.NNN...",
     ".PPPNNNN..",
-    "..PPP.NNN.",
+    "..PPPNNNN.",
     "...PPP.NN.",
     "....PPP.N.",
     "....NPPP..",
-    "..NNN.PPP.",
-    ".NNNN..PPP",
-    ".NNNN...PP",
-    "..NN......",
+    "..NNNNPPP.",
+    ".NNNNN.PPP",
+    ".NNNNN..PP",
+    "..NNN.....",
   ],
 };
 window.ICONS.back = {
@@ -279,15 +291,29 @@ window.ICONS.magnifier = {
 };
 
 window.ICONS.berry = {
-  colors: { B: "berry", W: "cream", L: "leaf" },
+  colors: { B: "berry", h: "#b79ee6", s: "#6353b6", c: "#4d3e98", T: "bark", L: "leaf", l: "#579064" },
   grid: [
-    "...LL",
-    "..LL.",
-    ".BBB.",
-    "BWBBB",
-    "BBBBB",
-    "BBBBB",
-    ".BBB.",
+    "TTTLL",
+    "..TLl",
+    "..T..",
+    ".hBB.",
+    "hBcBs",
+    "BBBBs",
+    ".sss.",
+  ],
+};
+window.ICONS.berries = {
+  colors: { B: "berry", h: "#b79ee6", s: "#6353b6", T: "bark", L: "leaf", l: "#579064" },
+  grid: [
+    "..TTLL.",
+    ".T..Ll.",
+    "hBB.hBB",
+    "BBB.BBB",
+    "BBs.BBs",
+    ".......",
+    "..hBB..",
+    "..BBB..",
+    "..BBs..",
   ],
 };
 window.ICONS.feather = {
@@ -327,6 +353,22 @@ window.ICONS.crackers = {
     "PPYYYPP",
     "PPPYPPP",
     "PPPPPPP",
+  ],
+};
+window.ICONS.share = {
+  colors: { S: "skyBlue", D: "#7595ca", H: "#baeaff" },
+  grid: [
+    "....H....",
+    "...SSS...",
+    "..SSSSS..",
+    "....S....",
+    "....S....",
+    "SS..S..DD",
+    "S...S...D",
+    "S.......D",
+    "S.......D",
+    "S.......D",
+    "SDDDDDDDD",
   ],
 };
 window.ICONS.persimmonLater = {

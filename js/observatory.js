@@ -373,9 +373,10 @@ const Observatory = (() => {
         l: canvas.width - (c.w + inset) * perPt + cx0, r: canvas.width + cx1, t: cy0, b: c.h * perPt + cy1,
       }));
       const byButtons = (x, y) => corner.some((c) => x + r + 2 > c.l && x - r - 2 < c.r && y + r + 2 > c.t && y - r - 2 < c.b);
+      const glow = Math.ceil(r * (2.2 + info.lit) + r * (1 - info.lit) * 0.6) + 3;
       const clear = (x, y) => {
         if (byButtons(x, y)) return false;
-        const R = r + 8;
+        const R = Math.max(r + 8, glow);
         for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
           const d2 = dx * dx + dy * dy;
           if (d2 > R * R) continue;
@@ -388,7 +389,7 @@ const Observatory = (() => {
       for (let y = Math.round(1.5 * TILE); y <= 4 * TILE; y++) for (let x = 2 * TILE; x <= Wpx - 2 * TILE; x += 2) tries.push([x, y, ((x - tx) / 11) ** 2 + ((y - ty) / 4) ** 2]);
       tries.sort((a, b) => a[2] - b[2]);
       const hit = tries.find(([x, y]) => clear(x, y));
-      if (hit) spot = { x: hit[0], y: hit[1], info };
+      if (hit) spot = { x: hit[0], y: hit[1], info, glow };
     }
     moonFor = { day, spot };
     return spot;
@@ -496,5 +497,29 @@ const Observatory = (() => {
     }
   }
 
-  return { drawNight, go, update, drawTravel, traveling: () => !!travel, shoot: (x, y) => { shooting = { x, y, t: 0 }; } };
+  return { drawNight, go, update, drawTravel, traveling: () => !!travel, shoot: (x, y) => { shooting = { x, y, t: 0 }; },
+    moon: () => ({ day: moonFor.day, spot: moonFor.spot }) };
 })();
+
+function drawTelescopeSparkle(time) {
+  const t = WORLD.things.find((x) => x.type === "bigTelescope");
+  if (!t) return;
+  const sparkleIcon = Cues.icon("sparkle", true);         // (twice as big: it's a cue)
+  if (Math.sin(time * 2.2) < -0.2) return;
+  const bob = Math.round(Math.sin(time * 3) * 2);
+  ctx.drawImage(sparkleIcon, Math.round(t.footX - 26 - sparkleIcon.width / 2), Math.round(t.footY - 30 - sparkleIcon.height + bob));
+}
+
+let telescopeLooked = false, telescopeOpening = false;
+function lookThroughTelescope() {
+  if (Sky.isOpen() || telescopeOpening) return;
+  telescopeLooked = true;
+  const text = window.OBSERVATORY_TEXT || {};
+  Husband.says(Object.keys(State.get().learned).length ? text.stars : text.noStars);
+  telescopeOpening = true;
+  setTimeout(() => {                        // (his line first, then the view tilts up, with its back arrow)
+    telescopeOpening = false;
+    UI.showBack(true);
+    Sky.show(State.get().day, [], { review: true }).then(() => UI.showBack(false));
+  }, 1500);
+}

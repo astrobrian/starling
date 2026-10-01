@@ -9,8 +9,7 @@ const Moon = (() => {
     else if (day <= 23) { month = 6; d = day + 6; }
     else if (day <= 53) { month = 7; d = day - 23; }
     else { month = 8; d = day - 53; }
-    const fmt = (window.MOON_TEXT && MOON_TEXT.lunarDate) || "음력 {month}월 {day}일";
-    return { month, day: d, korean: fmt.replace("{month}", month).replace("{day}", d) };
+    return { month, day: d, korean: MOON_TEXT.lunarDate.replace("{month}", month).replace("{day}", d) };
   }
 
   function forDay(day) {

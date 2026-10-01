@@ -400,6 +400,15 @@ const PROP_RENDERERS = {
     return finish(b, 7, 14);
   },
 
+  seedPouch() {
+    const b = new PixelBuffer(7, 7);
+    b.ellipse(3.5, 4.6, 3.1, 2.3, "path");                              // the pouch
+    b.polygon([[2.2, 2.8], [4.8, 2.8], [5.6, 0.9], [1.4, 0.9]], "path", { shadeAs: [3.5, 4, 3.1, 3] });   // its gathered neck
+    b.rect(2, 2, 3, 1, "wood", { flat: true });                         // the string
+    b.set(2, 0, "beeYellow"); b.set(3, 0, RAMPS.beeYellow[0]); b.set(4, 0, RAMPS.beeYellow[2]);   // seeds peeking out
+    return finish(b, 3, 6);
+  },
+
   jangdokdae() {
     const b = new PixelBuffer(46, 30);
     b.rect(1, 22, 44, 7, "stone");
@@ -824,10 +833,11 @@ function drawBeakFlower(ctx, footX, footY, faceLeft = false, pose = "stand", bir
   drawInBeak(ctx, "flower", footX, footY, faceLeft, pose, bird);
 }
 
-function drawInBeak(ctx, what, footX, footY, faceLeft = false, pose = "stand", bird = BIRDS.magpie) {
+function drawInBeak(ctx, what, footX, footY, faceLeft = false, pose = "stand", bird = BIRDS.magpie, { night = false } = {}) {
   const s = renderBird(bird, pose), tip = beakTip(bird, pose);
+  if (night && what !== "crowFeather") return;
   const f = what === "flower" ? prop("beakFlower") : what === "persimmon" ? prop("beakPersimmon")
-    : what === "plum" ? prop("beakPlum") : what === "crowFeather" ? prop("beakCrowFeather") : null;
+    : what === "plum" ? prop("beakPlum") : what === "crowFeather" ? (night ? beakCrowFeatherNight() : prop("beakCrowFeather")) : null;
   let sprite = f;
   if (!sprite) {
     if (!ICONS[what]) return;
@@ -876,6 +886,10 @@ Object.assign(PROP_RENDERERS, {
     return { canvas: s.canvas, ax: 3, ay: 3 };
   },
 });
+let beakFeatherNight = null;
+function beakCrowFeatherNight() {
+  return beakFeatherNight || (beakFeatherNight = { canvas: crowFeatherNight(3).canvas, ax: 3, ay: 3 });
+}
 
 const SOIL = "#A7805F", SOIL_WET = "#7E5E48";
 

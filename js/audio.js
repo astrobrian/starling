@@ -2,6 +2,7 @@
 const Sound = (() => {
   let ac = null, master, musicBus, sfxBus;
   const settings = loadSettings();
+  const musicWanted = () => !settings.musicOff && settings.music > 0;
 
   function loadSettings() {
     try {
@@ -23,7 +24,7 @@ const Sound = (() => {
     ac = new AC();
     if (ac.state === "suspended") ac.resume();
     for (const type of ["pointerup", "touchend", "click", "keydown"]) document.addEventListener(type, wake, { passive: true });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) wake(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) rest(); else wake(); });
     master = ac.createGain();
     master.gain.value = 0.9;
     master.connect(ac.destination);
@@ -35,20 +36,31 @@ const Sound = (() => {
   }
 
   function wake() {
+    if (document.hidden) return;
     if (ac && ac.state !== "running" && ac.state !== "closed") ac.resume().catch(() => {});
-    if (silentLoop && silentLoop.paused) silentLoop.play().catch(() => {});
+    if (silentLoop && silentLoop.paused && musicWanted()) silentLoop.play().catch(() => {});
+  }
+
+  function rest() {
+    if (ac && ac.state === "running") ac.suspend().catch(() => {});
+    if (silentLoop && !silentLoop.paused) silentLoop.pause();
   }
 
   let silentLoop = null;
   function playLikeMusic() {
+    const on = musicWanted();
     try {
-      if (navigator.audioSession) { navigator.audioSession.type = "playback"; return; }
+      if (navigator.audioSession) { navigator.audioSession.type = on ? "playback" : "ambient"; return; }
     } catch (e) { /* not there: the silent loop below */ }
+    if (!on) { if (silentLoop) silentLoop.pause(); return; }
     try {
-      silentLoop = new Audio(silentWav());
-      silentLoop.loop = true;
-      silentLoop.play().catch(() => {});
+      if (!silentLoop) { silentLoop = new Audio(silentWav()); silentLoop.loop = true; }
+      if (!document.hidden) silentLoop.play().catch(() => {});
     } catch (e) { silentLoop = null; }
+  }
+  function session() {
+    try { if (navigator.audioSession) return navigator.audioSession.type; } catch (e) { /* (below) */ }
+    return silentLoop ? (silentLoop.paused ? "loop paused" : "loop") : "";
   }
   function silentWav() {
     const n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
@@ -63,7 +75,7 @@ const Sound = (() => {
 
   function applyVolumes() {
     if (!ac) return;
-    musicBus.gain.setTargetAtTime(settings.musicOff ? 0 : settings.music * 0.9, ac.currentTime, 0.1);
+    musicBus.gain.setTargetAtTime(musicWanted() ? settings.music * 0.9 : 0, ac.currentTime, 0.1);
     sfxBus.gain.setTargetAtTime(settings.sound * 0.5, ac.currentTime, 0.05);
   }
 
@@ -77,15 +89,16 @@ const Sound = (() => {
     startedAt: 0, duration: 0, // for the position
     quietUntil: 0, timer: null,
     token: 0,                  // so a late-loading track can't start after a change
+    loading: null,             // the download under way (an AbortController), so turning the music off stops it
     starts: 0,                 // how many times playback has started (for testing)
     gapOverride: null,         // the test page can shorten the quiet
   };
 
-  function loadTrack(name) {
+  function loadTrack(name, signal) {
     if (buffers[name]) return Promise.resolve(buffers[name]);
     const info = (window.MUSIC_TRACKS || {})[name];
     if (!info) return Promise.reject(new Error(`no track "${name}" in data/music-tracks.js`));
-    return fetch(info.file)
+    return fetch(info.file, signal ? { signal } : undefined)
       .then((res) => {
         if (!res.ok) throw new Error(`${info.file}: ${res.status}`);
         return res.arrayBuffer();
@@ -138,27 +151,63 @@ const Sound = (() => {
     if (!ac) return;
     const again = options.restart || options.offset != null;
     if (name === music.name && !again && music.state !== "off" && music.state !== "missing") return;
-    const changing = name !== music.name && music.source;
     const previous = music.name;
     music.name = name;
+    if (!musicWanted()) {
+      if (previous && previous !== name) delete buffers[previous];
+      music.state = "off";
+      return;
+    }
+    begin(name, previous, options);
+  }
+
+  function begin(name, previous, options = {}) {
+    const again = options.restart || options.offset != null;
+    const changing = name !== previous && music.source;
     clearTimeout(music.timer);
     fadeOutCurrent(again ? 0.3 : 2.5);
     if (previous && previous !== name) setTimeout(() => { if (music.name !== previous) delete buffers[previous]; }, 3000);
     music.state = "loading";
     const token = ++music.token;
-    loadTrack(name).then((buffer) => {
-      if (token !== music.token) return;
+    const loading = typeof AbortController === "function" ? new AbortController() : null;
+    music.loading = loading;
+    loadTrack(name, loading && loading.signal).then((buffer) => {
+      if (music.loading === loading) music.loading = null;
+      if (token !== music.token) {
+        if (!musicWanted() || music.name !== name) delete buffers[name];
+        return;
+      }
       const start = () => { if (token === music.token) playThrough(name, buffer, options.offset || 0, options.offset ? 0.6 : FADE_IN); };
       if (changing && !again) setTimeout(start, 1500); else start();
     }).catch((e) => {
-      console.warn("Couldn't load the music:", e);
+      if (music.loading === loading) music.loading = null;
+      if ((e && e.name === "AbortError") || leaving) return;      // (the music was turned off while it loaded, or the page is opening fresh)
+      console.warn("Starling: Couldn't load the music:", String((e && e.message) || e));
       if (token === music.token) music.state = "missing";
     });
+  }
+
+  let leaving = false;
+  for (const type of ["beforeunload", "pagehide"]) window.addEventListener(type, () => { leaving = true; });
+
+  function stopLoading() {
+    if (music.loading) music.loading.abort();
+    music.loading = null;
+  }
+
+  function silence() {
+    music.token++;
+    stopLoading();
+    clearTimeout(music.timer);
+    if (ac) fadeOutCurrent(1);
+    music.state = "off";
+    for (const k of Object.keys(buffers)) delete buffers[k];
   }
 
   function stopMusic() {
     if (!ac) return;
     music.token++;
+    stopLoading();
     clearTimeout(music.timer);
     fadeOutCurrent(1.5);
     music.name = null;
@@ -176,6 +225,9 @@ const Sound = (() => {
       starts: music.starts,
       volume: music.source ? +music.gain.gain.value.toFixed(3) : 0,
       context: ac ? ac.state : "not started",
+      musicOn: musicWanted(),
+      loaded: Object.keys(buffers),          // the tracks decoded now
+      session: session(),
     };
   }
 
@@ -314,22 +366,40 @@ const Sound = (() => {
     blip({ type: "sawtooth", from: 190, to: 170, dur: 0.28, vol: 0.06, filter: { type: "lowpass", freq: 700 } });
   }
 
-  function setMusicOn(on) {
+  function setMusicOn(on) { turnMusic(on, musicWanted()); }
+  function turnMusic(on, was) {
+    if (on && !(settings.music > 0)) settings.music = settings.musicLast > 0 ? settings.musicLast : 0.6;
     settings.musicOff = !on;
     saveSettings();
     applyVolumes();
+    if (on === was) return;
+    if (ac) {
+      playLikeMusic();
+      if (!on) silence();
+      else if (music.name) begin(music.name, null);
+    }
+    try { window.dispatchEvent(new CustomEvent("starling-music", { detail: { on } })); } catch (e) { /* (old browsers) */ }
   }
 
-  function setVolume(kind, value) {
-    settings[kind] = value;
-    saveSettings();
-    applyVolumes();
-    if (kind === "sound") tap();
+  function setVolume(kind, value, settled = false) {
+    if (kind !== "music") {
+      settings[kind] = value;
+      saveSettings();
+      applyVolumes();
+      if (kind === "sound") tap();
+      return;
+    }
+    const was = musicWanted();
+    settings.music = value;
+    if (settled && value > 0) settings.musicLast = value;
+    if (value > 0 && !was) turnMusic(true, was);
+    else if (!(value > 0) && was) turnMusic(false, was);
+    else { saveSettings(); applyVolumes(); }
   }
 
   return {
     start, playMusic, stopMusic, musicStatus, setQuietGap,
-    chirp, twinkle, tap, buzz, setVolume, setMusicOn, musicOn: () => !settings.musicOff, settings,
+    chirp, twinkle, tap, buzz, setVolume, setMusicOn, musicOn: musicWanted, settings,
     owlCall, hearts, pickup, door, splash, sleep, note,
     status: musicStatus,
   };

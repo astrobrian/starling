@@ -39,8 +39,8 @@
   <link rel="preload" href="fonts/AtkinsonHyperlegible-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/AtkinsonHyperlegible-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/GowunDodum-Korean.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=0.3.3">
-  <link rel="stylesheet" href="css/style.css?v=0.3.3">
+  <link rel="stylesheet" href="css/fonts.css?v=0.3.4">
+  <link rel="stylesheet" href="css/style.css?v=0.3.4">
 </head>
 <body>
   <div id="need-server">
@@ -142,6 +142,7 @@
   <div id="title">
     <canvas id="title-sky"></canvas>
     <button id="title-fullscreen" class="hidden"></button>
+    <button id="title-paste" class="hidden"></button>
     <div class="title-main">
       <h1 id="title-name"></h1>
       <button id="title-continue" class="title-big hidden"></button>
@@ -199,7 +200,6 @@
   </div>
 
   
-  
   <div id="fullscreen-card" class="hidden">
     <div class="card">
       <h2 id="fullscreen-title"></h2>
@@ -208,6 +208,24 @@
       <button id="fullscreen-done"></button>
     </div>
   </div>
+  
+  <div id="home-card" class="hidden">
+    <div class="card">
+      <div id="home-card-icon"></div>
+      <p id="home-card-text"></p>
+      <div class="confirm-row"><button id="home-paste"></button><button id="home-new"></button></div>
+    </div>
+  </div>
+  
+  <div id="stars-here" class="hidden">
+    <div class="card">
+      <div id="stars-here-what"></div>
+      <p id="stars-here-text"></p>
+      <button id="stars-here-ok"></button>
+    </div>
+  </div>
+
+  
 
   <div id="credits" class="hidden">
     <div class="card">
@@ -259,74 +277,91 @@
 
   
   
-  <script src="js/dev.js?v=0.3.3"></script>
-  <script src="data/garden-map.js?v=0.3.3"></script>
-  <script src="data/world.js?v=0.3.3"></script>
-  <script src="data/flowers.js?v=0.3.3"></script>
-  <script src="data/birds.js?v=0.3.3"></script>
-  <script src="data/words.js?v=0.3.3"></script>
-  <script src="data/known-words.js?v=0.3.3"></script>
-  <script src="data/dialogue.js?v=0.3.3"></script>
-  <script src="data/constellations.js?v=0.3.3"></script>
-  <script src="data/moon.js?v=0.3.3"></script>
-  <script src="data/room.js?v=0.3.3"></script>
-  <script src="data/bird-schedule.js?v=0.3.3"></script>
+  <script src="js/dev.js?v=0.3.4"></script>
+  <script src="data/garden-map.js?v=0.3.4"></script>
+  <script src="data/world.js?v=0.3.4"></script>
+  <script src="data/flowers.js?v=0.3.4"></script>
+  <script src="data/birds.js?v=0.3.4"></script>
+  <script src="data/words.js?v=0.3.4"></script>
+  <script src="data/known-words.js?v=0.3.4"></script>
+  <script src="data/dialogue.js?v=0.3.4"></script>
+  <script src="data/constellations.js?v=0.3.4"></script>
+  <script src="data/moon.js?v=0.3.4"></script>
+  <script src="data/room.js?v=0.3.4"></script>
+  <script src="data/bird-schedule.js?v=0.3.4"></script>
   
   
-  <script src="data/days/day1.js?v=0.3.3"></script>
-  <script src="data/days/day2.js?v=0.3.3"></script>
-  <script src="data/days/day3.js?v=0.3.3"></script>
-  <script src="data/days/day4.js?v=0.3.3"></script>
-  <script src="data/days/day5.js?v=0.3.3"></script>
-  <script src="data/dolls.js?v=0.3.3"></script>
-  <script src="data/husband.js?v=0.3.3"></script>
-  <script src="data/quirks.js?v=0.3.3"></script>
-  <script src="data/observatory.js?v=0.3.3"></script>
-  <script src="data/icons.js?v=0.3.3"></script>
-  <script src="data/player.js?v=0.3.3"></script>
-  <script src="data/music-tracks.js?v=0.3.3"></script>
-  <script src="data/ui-text.js?v=0.3.3"></script>
-  <script src="data/intro.js?v=0.3.3"></script>
-  <script src="data/diary.js?v=0.3.3"></script>
-  <script src="data/game-settings.js?v=0.3.3"></script>
-  <script src="data/version.js?v=0.3.3"></script>
+  <script src="data/spots.js?v=0.3.4"></script>
+  <script src="data/days/day1.js?v=0.3.4"></script>
+  <script src="data/days/day2.js?v=0.3.4"></script>
+  <script src="data/days/day3.js?v=0.3.4"></script>
+  <script src="data/days/day4.js?v=0.3.4"></script>
+  <script src="data/days/day5.js?v=0.3.4"></script>
+  <script src="data/dolls.js?v=0.3.4"></script>
+  <script src="data/husband.js?v=0.3.4"></script>
+  <script src="data/quirks.js?v=0.3.4"></script>
+  <script src="data/observatory.js?v=0.3.4"></script>
+  <script src="data/icons.js?v=0.3.4"></script>
+  <script src="data/player.js?v=0.3.4"></script>
+  <script src="data/music-tracks.js?v=0.3.4"></script>
+  <script src="data/ui-text.js?v=0.3.4"></script>
+  <script src="data/intro.js?v=0.3.4"></script>
+  <script src="data/diary.js?v=0.3.4"></script>
+  <script src="data/game-settings.js?v=0.3.4"></script>
+  <script src="data/version.js?v=0.3.4"></script>
   
-  <script src="js/palette.js?v=0.3.3"></script>
-  <script src="js/art.js?v=0.3.3"></script>
-  <script src="js/birds.js?v=0.3.3"></script>
-  <script src="js/characters.js?v=0.3.3"></script>
-  <script src="js/flowers.js?v=0.3.3"></script>
-  <script src="js/props.js?v=0.3.3"></script>
-  <script src="js/house.js?v=0.3.3"></script>
-  <script src="js/world.js?v=0.3.3"></script>
-  <script src="js/room.js?v=0.3.3"></script>
-  <script src="js/ground.js?v=0.3.3"></script>
-  <script src="js/critters.js?v=0.3.3"></script>
-  <script src="js/river.js?v=0.3.3"></script>
-  <script src="js/daylight.js?v=0.3.3"></script>
-  <script src="js/moon.js?v=0.3.3"></script>
-  <script src="js/atmosphere.js?v=0.3.3"></script>
-  <script src="js/husband.js?v=0.3.3"></script>
-  <script src="js/quirk-poses.js?v=0.3.3"></script>
-  <script src="js/quirks.js?v=0.3.3"></script>
-  <script src="js/observatory.js?v=0.3.3"></script>
-  <script src="js/sky.js?v=0.3.3"></script>
-  <script src="js/audio.js?v=0.3.3"></script>
-  <script src="js/ui.js?v=0.3.3"></script>
-  <script src="js/closeup.js?v=0.3.3"></script>
-  <script src="js/title.js?v=0.3.3"></script>
-  <script src="js/intro.js?v=0.3.3"></script>
-  <script src="js/state.js?v=0.3.3"></script>
-  <script src="js/backup.js?v=0.3.3"></script>
-  <script src="js/speech.js?v=0.3.3"></script>
-  <script src="js/diary.js?v=0.3.3"></script>
-  <script src="js/portraits.js?v=0.3.3"></script>
-  <script src="js/dolls.js?v=0.3.3"></script>
-  <script src="js/wildlife.js?v=0.3.3"></script>
-  <script src="js/favors.js?v=0.3.3"></script>
-  <script src="js/moments.js?v=0.3.3"></script>
-  <script src="js/story.js?v=0.3.3"></script>
-  <script src="js/pathfinding.js?v=0.3.3"></script>
-  <script src="js/main.js?v=0.3.3"></script>
+  <script src="js/palette.js?v=0.3.4"></script>
+  <script src="js/art.js?v=0.3.4"></script>
+  <script src="js/birds.js?v=0.3.4"></script>
+  <script src="js/characters.js?v=0.3.4"></script>
+  <script src="js/flowers.js?v=0.3.4"></script>
+  <script src="js/props.js?v=0.3.4"></script>
+  <script src="js/house.js?v=0.3.4"></script>
+  <script src="js/world.js?v=0.3.4"></script>
+  <script src="js/room.js?v=0.3.4"></script>
+  <script src="js/ground.js?v=0.3.4"></script>
+  <script src="js/critters.js?v=0.3.4"></script>
+  <script src="js/river.js?v=0.3.4"></script>
+  <script src="js/daylight.js?v=0.3.4"></script>
+  <script src="js/moon.js?v=0.3.4"></script>
+  <script src="js/atmosphere.js?v=0.3.4"></script>
+  <script src="js/husband-art.js?v=0.3.4"></script>
+  <script src="js/husband.js?v=0.3.4"></script>
+  <script src="js/quirk-poses.js?v=0.3.4"></script>
+  <script src="js/quirks.js?v=0.3.4"></script>
+  <script src="js/observatory.js?v=0.3.4"></script>
+  <script src="js/sky.js?v=0.3.4"></script>
+  <script src="js/audio.js?v=0.3.4"></script>
+  <script src="js/ui.js?v=0.3.4"></script>
+  <script src="js/closeup.js?v=0.3.4"></script>
+  <script src="js/title.js?v=0.3.4"></script>
+  <script src="js/intro.js?v=0.3.4"></script>
+  <script src="js/state.js?v=0.3.4"></script>
+  <script src="js/backup.js?v=0.3.4"></script>
+  <script src="js/speech.js?v=0.3.4"></script>
+  <script src="js/diary-art.js?v=0.3.4"></script>
+  <script src="js/diary.js?v=0.3.4"></script>
+  <script src="js/portraits.js?v=0.3.4"></script>
+  <script src="js/dolls.js?v=0.3.4"></script>
+  <script src="js/wildlife.js?v=0.3.4"></script>
+  <script src="js/favors.js?v=0.3.4"></script>
+  <script src="js/moments.js?v=0.3.4"></script>
+  <script src="js/cards.js?v=0.3.4"></script>
+  <script src="js/effects.js?v=0.3.4"></script>
+  <script src="js/cues.js?v=0.3.4"></script>
+  <script src="js/story.js?v=0.3.4"></script>
+  <script src="js/pathfinding.js?v=0.3.4"></script>
+  <script src="js/places.js?v=0.3.4"></script>
+  <script src="js/screen.js?v=0.3.4"></script>
+  <script src="js/her.js?v=0.3.4"></script>
+  <script src="js/her-acts.js?v=0.3.4"></script>
+  <script src="js/magpie.js?v=0.3.4"></script>
+  <script src="js/taps.js?v=0.3.4"></script>
+  <script src="js/input.js?v=0.3.4"></script>
+  <script src="js/side-buttons.js?v=0.3.4"></script>
+  <script src="js/emotes.js?v=0.3.4"></script>
+  <script src="js/sky-labels.js?v=0.3.4"></script>
+  <script src="js/draw.js?v=0.3.4"></script>
+  <script src="js/main.js?v=0.3.4"></script>
 </body>
 </html>

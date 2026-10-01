@@ -2,11 +2,13 @@
 { // (this day's own names stay inside: see day1.js)
 window.DAYS = window.DAYS || {};
 
-const D5_BUSH = { thing: "bush", near: [12.5, 24.5] };
+const D5_BUSH = SPOTS.parrotbillBush;
 const D5_FLOCK = ["pb1", "pb2", "pb3", "pb4"];
 const D5_PARROTBILLS = ["parrotbill", ...D5_FLOCK];
-const D5_ROW = (i) => [8.5 + i * 0.6, 24.4 + (i % 2) * 0.2];
-const D5_BERRY_BUSH = { thing: "berryBush", near: [12.5, 22.5] };
+const D5_ROW = (i) => ({ thing: "bigTree", dx: -24 + i * 9.6, dy: 38.4 + (i % 2) * 3.2 });
+const D5_BERRY_BUSH = SPOTS.berryBushByTree;
+const D5_FLOCK_OUT = [{ moment: "hideIn", birds: D5_FLOCK, in: D5_BUSH }, { moment: "popOut", birds: D5_FLOCK, from: D5_BUSH }];
+const D5_AT_THE_TREE = [{ near: "bigTree", reach: 3.5, stop: 0, lead: "d5_go_tree", onlyIfFar: true, tapWalks: ["magpie"] }, { phase: "sunset" }];
 
 DAYS[5] = {
   chapter: 1,
@@ -30,14 +32,14 @@ DAYS[5] = {
       id: "party",
       noon: true,
       birds: [
-        { id: "parrotbill", species: "parrotbill", at: [15.7, 25.3], does: "ground", range: 0.2, shy: false, faceLeft: true },
+        { id: "parrotbill", species: "parrotbill", at: { ...D5_BUSH, dx: 51.2, dy: 4.8 }, does: "ground", range: 0.2, shy: false, faceLeft: true },
         ...D5_FLOCK.map((id) => ({ id, species: "parrotbill", at: D5_BUSH, does: "ground", shy: false })),
       ],
       world: { after: [{ today: true, birds: D5_PARROTBILLS.map((id, i) => (
         { id, species: "parrotbill", at: D5_ROW(i), does: "ground", range: 0.3, shy: false, faceLeft: i % 2 === 1 })) }] },
       steps: [
         { moment: "hideIn", birds: D5_FLOCK, in: D5_BUSH },
-        { meet: "parrotbill", lead: "d5_lead", ahead: true },
+        { meet: "parrotbill", lead: "d5_lead", friendLead: "d5_lead_back", ahead: true },
         { scene: [{ magpie: { perch: { bird: "parrotbill", dx: 18, dy: 1 }, face: "left" } }, { wait: 0.7 }] },
         { emote: "sweat", on: "parrotbill" },
         "d5_small",
@@ -53,13 +55,15 @@ DAYS[5] = {
         { scene: [{ moment: "celebrate", birds: D5_PARROTBILLS }] },
         "d5_found_us",
         { friend: "parrotbill" },
+        { resume: "found", steps: D5_FLOCK_OUT },
         { scene: [
-          ...D5_PARROTBILLS.map((bird) => ({ bird, act: "sing", seconds: 6, wait: false })),
+          ...D5_PARROTBILLS.map((bird) => ({ bird, act: "sing", seconds: 6, cueEvery: 1.2, wait: false })),
           { act: "sing", on: "magpie", seconds: 6, wait: false },
           { wait: 1.2 },
         ] },
         { choose: "d5_sing", replies: { "*": [{ act: "sing" }] } },
         { learn: ["sing"] },
+        { resume: "sang", steps: D5_FLOCK_OUT },
         { scene: [
           ...D5_PARROTBILLS.map((bird) => ({ bird, act: "dance", seconds: 4, wait: false })),
           { act: "dance", on: "magpie", seconds: 4, wait: false },
@@ -67,6 +71,7 @@ DAYS[5] = {
         ] },
         { choose: "d5_dance", replies: { "*": [{ act: "dance" }] } },
         { learn: ["dance"] },
+        { resume: "danced", steps: D5_FLOCK_OUT },
         { scene: [
           ...D5_PARROTBILLS.map((bird) => ({ bird, act: "jump", seconds: 4, wait: false })),
           { act: "jump", on: "magpie", seconds: 4, wait: false },
@@ -74,6 +79,7 @@ DAYS[5] = {
         ] },
         { choose: "d5_jump", replies: { "*": [{ act: "jump" }] } },
         { learn: ["jump"] },
+        { resume: "jumped", steps: D5_FLOCK_OUT },
         { moment: "runTo", birds: D5_PARROTBILLS, to: D5_ROW(0), wait: false },
         "d5_run",
         { near: "bigTree", reach: 3.2, stop: 0, hint: "d5_run", tapWalks: [...D5_PARROTBILLS, "magpie"] },
@@ -88,13 +94,13 @@ DAYS[5] = {
       id: "friends",
       phase: "sunset",
       birds: [
-        { id: "f-sparrow1", species: "sparrow", at: { thing: "bigTree", dx: -20, dy: -19 }, does: "perch", sortAfter: "bigTree", faceLeft: false, flyIn: true, shy: false },
-        { id: "f-sparrow2", species: "sparrow", at: { thing: "bigTree", dx: -11, dy: -20 }, does: "perch", sortAfter: "bigTree", faceLeft: true, flyIn: true, shy: false },
-        { id: "f-bulbul", species: "bulbul", at: { thing: "bigTree", dx: 17, dy: -31 }, does: "perch", sortAfter: "bigTree", faceLeft: true, flyIn: true, shy: false },
-        { id: "f-tit1", species: "tit", at: { ...D5_BERRY_BUSH, dx: -5, dy: -14 }, does: "perch", sortAfter: D5_BERRY_BUSH, faceLeft: true, flyIn: true, shy: false },
-        { id: "f-tit2", species: "tit", at: { ...D5_BERRY_BUSH, dx: 5, dy: -13 }, does: "perch", sortAfter: D5_BERRY_BUSH, faceLeft: true, flyIn: true, shy: false },
-        { id: "f-dove1", species: "dove", at: { thing: "birdBath", dx: -9, dy: -13 }, does: "perch", sortAfter: "birdBath", faceLeft: false, flyIn: true, shy: false },
-        { id: "f-dove2", species: "dove", at: { thing: "birdBath", dx: 9, dy: -13 }, does: "perch", sortAfter: "birdBath", faceLeft: true, flyIn: true, shy: false },
+        { id: "f-sparrow1", species: "sparrow", at: SPOTS.sparrowBranch, does: "perch", sortAfter: "bigTree", faceLeft: false, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-sparrow2", species: "sparrow", at: { thing: "bigTree", dx: -11, dy: -20 }, does: "perch", sortAfter: "bigTree", faceLeft: true, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-bulbul", species: "bulbul", at: { thing: "bigTree", dx: 17, dy: -31 }, does: "perch", sortAfter: "bigTree", faceLeft: true, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-tit1", species: "tit", at: { ...D5_BERRY_BUSH, dx: -5, dy: -14 }, does: "perch", sortAfter: D5_BERRY_BUSH, faceLeft: true, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-tit2", species: "tit", at: { ...D5_BERRY_BUSH, dx: 5, dy: -13 }, does: "perch", sortAfter: D5_BERRY_BUSH, faceLeft: true, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-dove1", species: "dove", at: { thing: "birdBath", dx: -9, dy: -13 }, does: "perch", sortAfter: "birdBath", faceLeft: false, flyIn: true, shy: false, greets: "sunset" },
+        { id: "f-dove2", species: "dove", at: { thing: "birdBath", dx: 9, dy: -13 }, does: "perch", sortAfter: "birdBath", faceLeft: true, flyIn: true, shy: false, greets: "sunset" },
       ],
       world: {
         after: [
@@ -118,6 +124,7 @@ DAYS[5] = {
         { thought: null },
         { moment: "celebrate", birds: "all" },
         { magpie: "follow" },
+        { resume: "shared", steps: D5_AT_THE_TREE },
         "d5_say_hello",
         { greet: {
           sparrow: "d5_hi_sparrow",
@@ -126,6 +133,7 @@ DAYS[5] = {
           dove: ["d5_hi_dove", "d5_hi_dove2"],
           parrotbill: "d5_hi_parrotbill",
         }, hint: "d5_say_hello" },
+        { resume: "greeted", steps: D5_AT_THE_TREE },
         { moment: "sleepInRow", birds: D5_PARROTBILLS, at: { ...D5_BUSH, dy: -8 }, sortAfter: D5_BUSH, gap: 8 },
         "d5_sleep",
         { learn: ["sleep"] },

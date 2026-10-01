@@ -154,19 +154,19 @@ const Quirks = (() => {
       const H = him(), c = companion;
       if (q.t > 1.8 && !q.magpie && c.mode === "follow" && !c.flight && !c.act && Story.understands()) {
         q.magpie = { x: Math.round(H.x + 8 + q.side * 2), y: Math.round(H.y) - TILE + 6 };
-        magpieFlyTo("perch", q.magpie.x, q.magpie.y, player.sitting.footY + 0.8);
+        Magpie.flyTo("perch", q.magpie.x, q.magpie.y, player.sitting.footY + 0.8);
       }
       if (q.t > 7.2 && !q.woke) {
         q.woke = true;
         H.emote = { name: "exclaim", age: 0 };
         Sound.tap(900);
-        if (MOMENTS.doze.magpieThere(q)) { Sound.chirp(MAGPIE_VOICE.chirp, MAGPIE_VOICE.pitch); magpieFlyTo("follow"); }
+        if (MOMENTS.doze.magpieThere(q)) { Sound.chirp(MAGPIE_VOICE.chirp, MAGPIE_VOICE.pitch); Magpie.flyTo("follow"); }
       }
       return q.t > 8.6;
     },
     magpieThere: (q) => q.magpie && companion.mode === "perch" && !companion.flight && companion.px === q.magpie.x && companion.py === q.magpie.y,
     landed: (q) => q.magpie && !companion.flight && companion.mode === "perch",
-    end: (q) => { if (!q.woke && MOMENTS.doze.magpieThere(q)) magpieFlyTo("follow"); },
+    end: (q) => { if (!q.woke && MOMENTS.doze.magpieThere(q)) Magpie.flyTo("follow"); },
     her: (q) => (MOMENTS.doze.landed(q) || q.woke ? { sprite: HER().sitHappy, lift: 0, facing: "down" } : null),
     him: (q) => {
       if (q.woke) return body().S().sit;
@@ -573,12 +573,12 @@ const Quirks = (() => {
     H.pose = null; H.moving = false;
     const m = MOMENTS[name];
     if (m.begin) m.begin(cur);
-    if (typeof upClose === "function") upClose(true);      // (a tender moment, up close: js/main.js)
+    upClose(true);      // (a tender moment, up close: js/screen.js)
   }
 
   function maybe(dt) {
     tick();
-    if (cur || now() < next || !quiet()) return;
+    if (cur || now() < next || !quiet() || !Husband.roomAbove()) return;
     for (const name of Object.keys(MOMENTS)) {
       const c = conf(name);
       if (!c.odds || !due(name) || Math.random() >= 1 - Math.pow(1 - c.odds, dt)) continue;
@@ -625,7 +625,7 @@ const Quirks = (() => {
     if (!m.bench && H.state === "together") { H.rejoin = true; H.rejoinHappy = false; }
     if (early) clearWords();
     happened(q.name);
-    if (typeof upClose === "function") upClose(false);     // (and back out again)
+    upClose(false);     // (and back out again)
   }
   const stop = () => finish(true);
 

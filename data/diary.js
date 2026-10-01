@@ -4,6 +4,7 @@ window.DIARY = {
     weather: "sunny",
     picture: "d1",
     pictureAfter: "star",
+    early: "d1early",
     text: [
       { text: "I got a star!", after: "star" },
       { text: "{name} was hungry, so I got a berry.", after: "berry" },
@@ -16,6 +17,7 @@ window.DIARY = {
     weather: "sunny",
     picture: "d2",
     pictureAfter: "persimmon",
+    early: "d2early",
     text: [
       { text: "Sparrow lost a feather. I found it!", after: "feather" },
       { text: "Bulbul wanted a plum. I got one!", after: "persimmon" },
@@ -28,6 +30,7 @@ window.DIARY = {
     weather: "sunny",
     picture: "d3",
     pictureAfter: "flowers",
+    early: "d3early",
     text: [
       { text: "I got seeds for the empty feeder. Now it is full!", after: "feeder" },
       { text: "I gave Bulbul red, yellow, pink and white flowers.", after: "flowers" },
@@ -40,6 +43,7 @@ window.DIARY = {
     weather: "hot",
     picture: "d4",
     pictureAfter: "bath",
+    early: "d4early",
     text: [
       "It was so hot!",
       { text: "I shared my rice and bread with the birds.", after: "share" },
@@ -51,6 +55,7 @@ window.DIARY = {
     weather: "sunny",
     picture: "d5",
     pictureAfter: "friends",
+    early: "d5early",
     text: [
       { text: "I found many small birds in a bush.", after: "party" },
       { text: "We sang, danced, jumped and ran!", after: "party" },

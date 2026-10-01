@@ -5,7 +5,7 @@ window.WORDS = {
   look:      { day: 1, picture: "👀", korean: null },
   up:        { day: 1, picture: "⬆️", korean: null },
   hungry:    { day: 1, picture: "🤤", korean: "배고파" },
-  berry:     { day: 1, picture: "🫐", korean: null },
+  berry:     { day: 1, picture: "🫐", icon: "berry", korean: null },     // (one berry; "berries" shows the bunch, ICONS.berries)
   eat:       { day: 1, picture: "🍽️", korean: null, forms: ["ate", "eaten"] },
   tree:      { day: 1, picture: "🌳", korean: null },
   follow:    { day: 1, picture: "👣", korean: "따라와" },

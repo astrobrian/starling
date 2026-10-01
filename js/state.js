@@ -21,7 +21,6 @@ const State = (() => {
     scene: "room",           // where she is: room or garden
     doll: null,              // the doll riding on her back today
     dollDay: 0,              // the day she picked it
-    dollOf: {},              // day -> the doll that came along that day (for her diary)
     dawn: { words: [], friends: [], bridge: [] },   // what she had when this morning began (words, friends, bridge ids)
     slept: true,             // they slept together: their morning (waking up, the kiss) is still to come
     again: false,            // this morning goes on with yesterday's day ("Our friends are waiting!")
@@ -279,7 +278,7 @@ const State = (() => {
     try { localStorage.setItem(MORNING, JSON.stringify(data)); } catch (e) { /* private mode */ }
   }
 
-  function eraseProgress() {
+  function keepPrevious() {
     const stars = (text) => { try { return Object.keys(JSON.parse(text).learned || {}).length; } catch (e) { return -1; } };
     try {
       const now = localStorage.getItem(KEY), kept = localStorage.getItem(KEY + ".previous");
@@ -288,6 +287,11 @@ const State = (() => {
         const m = localStorage.getItem(MORNING);
         if (m !== null) localStorage.setItem(MORNING + ".previous", m); else localStorage.removeItem(MORNING + ".previous");
       }
+    } catch (e) { /* private mode */ }
+  }
+  function eraseProgress() {
+    keepPrevious();
+    try {
       localStorage.removeItem(KEY);
       localStorage.removeItem(MORNING);
     } catch (e) { /* private mode */ }
@@ -348,6 +352,7 @@ const State = (() => {
     },
     reset() { data = fresh(); frozen = false; beginDay(); },
     eraseProgress,
+    keepPrevious,
     freeze() { frozen = true; },
     addWonder() { data.wonders = (data.wonders || 0) + 1; save(); },
     setHairFlower(f) { data.hairFlower = f || null; save(); },
@@ -410,3 +415,8 @@ const Words = (() => {
 
   return { base, isBright, isTarget, learn, learnedOn, info: (w) => WORDS[base(w)] };
 })();
+
+const saved = {
+  get(key) { try { return JSON.parse(localStorage.getItem("starling." + key)); } catch (e) { return null; } },
+  set(key, v) { try { localStorage.setItem("starling." + key, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+};

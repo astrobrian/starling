@@ -35,7 +35,7 @@ const Wildlife = (() => {
   }
 
   const get = (id) => birds.find((b) => b.id === id);
-  function remove(id) { const b = get(id); if (b) finishAct(b); birds = birds.filter((x) => x.id !== id); }
+  function remove(id) { const b = get(id); if (b) { finishAct(b); dropFlight(b, false); } birds = birds.filter((x) => x.id !== id); }
 
   function schedule(day, phase, world, instant = true) {
     const wanted = [];
@@ -70,11 +70,19 @@ const Wildlife = (() => {
 
   function flyTo(b, x, y, dur = null, opts = {}) {
     finishAct(b);
+    dropFlight(b, false);
     const from = { x: b.x, y: b.y };
     const d = Math.hypot(x - from.x, y - from.y);
     b.flight = { from, to: { x, y }, t: 0, dur: dur || Math.min(1.6, 0.4 + d / 170), home: !opts.keepHome, arc: opts.arc === undefined ? null : opts.arc, then: opts.then || null };
     b.faceLeft = x < from.x;
     b.hop = null;
+    return new Promise((ok) => { b.flight.landed = ok; });
+  }
+  function dropFlight(b, landed) {
+    const f = b && b.flight;
+    if (!f) return;
+    b.flight = null;
+    if (f.landed) f.landed(landed);
   }
 
   function stepHop(b, dt) {
@@ -284,7 +292,7 @@ const Wildlife = (() => {
     },
   };
 
-  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2, pant: 0, fan: 1.8, flap: 1.2, shake: 0.56, look: 0.7, lookUp: 0.9, lookDown: 0.8, fanTail: 2.4 };
+  const ACT_TIME = { drink: 2.6, bathe: 3.2, sing: 3, sleep: 0, jump: 1.65, dance: 1.2, pant: 0, fan: 1.8, flap: 1.2, shake: 0.56, look: 0.7, lookUp: 0.9, lookDown: 0.8, big: 0.9, small: 0.9, fanTail: 2.4 };
   const HOP_TIME = { jump: 0.55, dance: 0.4 };
   const MELODY = [1, 1.12, 1.26, 1.12, 1.5, 1.33, 1.26];
 
@@ -295,13 +303,16 @@ const Wildlife = (() => {
     return { name, t: 0, dur, n: 0, nextCue: name === "sleep" ? rand(0.6, 3) : 0.1, done: false, resolve: null };
   }
 
-  function stepAct(a, dt, look, owner) {
+  function stepAct(a, dt, look, owner, capped = false) {
     a.t += dt;
     const t = a.t;
     let pose = "stand", lift = 0, flip = false;
-    const cue = (kind, dir) => (owner.cueQueue || (owner.cueQueue = [])).push({ kind, dir });
+    const cue = (kind, dir) => {
+      if (kind === "note" && capped && notesLive() >= MOST_NOTES) return;
+      (owner.cueQueue || (owner.cueQueue = [])).push({ kind, dir });
+    };
     if (a.name === "drink") {
-      pose = look.drinks === "sip" || t % 1.3 < 0.9 ? "drink" : "tipUp";
+      pose = look.drinks === "sip" ? (t % 2.6 < 2.0 ? "drink" : "stand") : t % 1.3 < 0.9 ? "drink" : "tipUp";
     } else if (a.name === "bathe") {
       const k = t % 1.5, burst = Math.floor(t / 1.5);
       if (k < 0.9) {
@@ -315,7 +326,7 @@ const Wildlife = (() => {
         pose = Math.floor(k / 0.2) % 2 ? "sing2" : "sing";
         if (t >= a.nextCue) {
           cue("note", a.cueDir || (owner.faceLeft ? -1 : 1));
-          a.nextCue = t + 0.45;
+          a.nextCue = t + (a.cueEvery || 0.45);
           if (typeof Sound !== "undefined") Sound.chirp(look.chirp || "tweet", (look.chirpPitch || 2600) * MELODY[a.n % MELODY.length], a.n);
           a.n++;
         }
@@ -349,6 +360,11 @@ const Wildlife = (() => {
       pose = "tipUp";
     } else if (a.name === "lookDown") {
       pose = "peck";
+    } else if (a.name === "big") {
+      pose = "wings";
+      lift = t < 0.25 ? Math.sin((t / 0.25) * Math.PI) * 2 : 0;
+    } else if (a.name === "small") {
+      pose = "crouch";
     } else if (a.name === "fanTail") {
       const k = t % 1.2;
       pose = k < 0.95 ? "fanTail" : "stand";
@@ -358,11 +374,12 @@ const Wildlife = (() => {
     return { pose, lift, flip };
   }
 
-  function act(b, name, seconds) {
+  function act(b, name, seconds, { cueEvery } = {}) {
     if (!b) return Promise.resolve();
     finishAct(b);
     if (!name) return Promise.resolve();
     b.act = newAct(name, seconds);
+    if (cueEvery) { b.act.cueEvery = cueEvery; b.act.nextCue = 0.1 + Math.random() * cueEvery; }
     return new Promise((resolve) => { b.act.resolve = resolve; });
   }
 
@@ -375,22 +392,29 @@ const Wildlife = (() => {
     if (a.resolve) a.resolve();
   }
 
-  const CUE_LIFE = { note: 1.3, zzz: 2.1 };
-  function drawCues(ctx2, o, anchor) {
+  const CUE_LIFE = { note: 1.3, zzz: 2.1 }, MOST_NOTES = 8;
+  let notesOut = [];
+  const notesLive = () => { const now = performance.now() / 1000; return (notesOut = notesOut.filter((c) => now - c.born < CUE_LIFE.note)).length; };
+  const smallIcons = {};
+  const smallIcon = (name) => smallIcons[name] || (smallIcons[name] = iconFromGrid(ICONS[name], false).toCanvas());
+  function drawCues(ctx2, o, anchor, { big = false, icon = "note" } = {}) {
     const now = performance.now() / 1000;
     for (const q of o.cueQueue || []) {
+      const m = q.kind === "note" && !big ? 1 : CUE;
       const from = q.kind === "zzz" ? anchor.head : anchor.mouth;
-      (o.cues || (o.cues = [])).push({ kind: q.kind, x: from.x + (q.dx || 0) * CUE, y: from.y + (q.dy || 0) * CUE, dir: q.dir || 1, born: now, seed: Math.random() * 6 });
+      const c = { kind: q.kind, x: from.x + (q.dx || 0) * m, y: from.y + (q.dy || 0) * m, dir: q.dir || 1, born: now, seed: Math.random() * 6, m, big, icon };
+      (o.cues || (o.cues = [])).push(c);
+      if (q.kind === "note") notesOut.push(c);
     }
     if (o.cueQueue) o.cueQueue.length = 0;
     if (!o.cues || !o.cues.length) return;
     o.cues = o.cues.filter((c) => now - c.born < CUE_LIFE[c.kind]);
     for (const c of o.cues) {
-      const age = now - c.born, k = age / CUE_LIFE[c.kind];
+      const age = now - c.born, k = age / CUE_LIFE[c.kind], m = c.m || CUE;
       if (k > 0.8 && Math.floor(age * 20) % 2) continue;
-      const icon = emoteSprite(c.kind);
-      const x = c.kind === "zzz" ? c.x + c.dir * (1 + k * 6) * CUE : c.x + (c.dir * (1 + k * 6) + Math.sin(age * 6 + c.seed) * 1.5) * CUE;
-      const y = c.y - 1 - k * (c.kind === "zzz" ? 11 : 15) * CUE;
+      const icon = c.kind === "note" ? (c.big ? Cues.icon(c.icon) : smallIcon(c.icon)) : emoteSprite(c.kind);
+      const x = c.kind === "zzz" ? c.x + c.dir * (1 + k * 6) * m : c.x + (c.dir * (1 + k * 6) + Math.sin(age * 6 + c.seed) * 1.5) * m;
+      const y = c.y - 1 - k * (c.kind === "zzz" ? 11 : 15) * m;
       ctx2.drawImage(icon, Math.round(x - icon.width / 2), Math.round(y - icon.height));
     }
   }
@@ -403,7 +427,7 @@ const Wildlife = (() => {
       const group = { birds: order, resolve, range };
       order.forEach((b, i) => {
         finishAct(b);
-        b.flight = null; b.hop = null; b.hiddenIn = null; b.gone = false;
+        dropFlight(b, false); b.hop = null; b.hiddenIn = null; b.gone = false;
         b.does = "run"; b.lift = 0; b.shy = false;                           // (she follows them: they don't mind)
         b.run = { group, ahead: order[i - 1] || null, path: i === 0 ? route(b, x, y) : null, trail: [{ x: b.x, y: b.y }], speed, gap, done: false, phase: i * 0.3 };
       });
@@ -447,7 +471,7 @@ const Wildlife = (() => {
   function hideIn(list, bush) {
     for (const b of (list || []).filter(Boolean)) {
       finishAct(b);
-      b.flight = null; b.hop = null; b.run = null;
+      dropFlight(b, false); b.hop = null; b.run = null;
       b.hiddenIn = bush; b.gone = true;              // (gone: not drawn, not tappable)
       b.x = bush.footX; b.y = bush.footY - 2;
     }
@@ -503,7 +527,7 @@ const Wildlife = (() => {
     const spotX = (i) => x + (i - (n - 1) / 2) * step;
     const doze = (b, i) => { act(b, "sleep"); b.act.nextCue = 1 + i * 2.2; b.act.cueEvery = n * 2.2; };
     if (instant) {
-      list.forEach((b, i) => { b.flight = null; b.hop = null; b.x = spotX(i); b.y = y; b.home = { x: b.x, y }; doze(b, i); });
+      list.forEach((b, i) => { dropFlight(b, false); b.hop = null; b.x = spotX(i); b.y = y; b.home = { x: b.x, y }; doze(b, i); });
       return Promise.resolve(list);
     }
     const landed = list.map((b, i) => new Promise((resolve) => setTimeout(() => flyTo(b, spotX(i), y, 0.9, { then: () => { settle(b, i); resolve(); } }), i * 300)));
@@ -687,6 +711,7 @@ const Wildlife = (() => {
           if (f.leave) { b.gone = true; if (b.forGood) b.removeNow = true; }
           else if (f.home) b.home = { x: f.to.x, y: f.to.y };                // (it lives here now)
           if (f.then) f.then();
+          if (f.landed) f.landed(true);
         }
         continue;
       }
@@ -700,7 +725,7 @@ const Wildlife = (() => {
       }
       if (b.hop) { stepHop(b, dt); continue; }
       if (b.act) {
-        const f = stepAct(b.act, dt, b.look, b);
+        const f = stepAct(b.act, dt, b.look, b, true);
         b.pose = f.pose; b.lift = f.lift;
         if (f.flip) b.faceLeft = !b.faceLeft;
         if (b.act.done) finishAct(b);
@@ -877,10 +902,14 @@ const Wildlife = (() => {
     return placeThought(x, y, [...keepClear(), ...thoughtBubbles().map((g) => g.box)], prefer);
   }
   function keepClear() {
-    const out = [];
+    const out = typeof buttonBoxes === "function" ? buttonBoxes() : [];
     if (!player.hidden && typeof playerPose === "function") {
       const p = playerPixelPos(), pose = playerPose();
       out.push({ x: p.x, y: p.y - TILE - pose.lift, w: pose.sprite.width, h: pose.sprite.height });
+    }
+    if (typeof Husband !== "undefined" && ["together", "coming", "leaving"].includes(Husband.state())) {
+      const h = Husband.pos(), q = Husband.wondering() ? emoteSprite("question").height + 2 : 0;
+      out.push({ x: h.x - 2, y: h.y - TILE - q, w: TILE + 4, h: 2 * TILE + q });
     }
     if (typeof Story !== "undefined" && Story && Story.wants) {
       for (const t of WORLD.things) {
@@ -984,7 +1013,7 @@ const Wildlife = (() => {
 
   function showEmote(b, name) { b.emote = { name, age: 0 }; }
 
-  function clear() { birds.forEach(finishAct); birds = []; hideouts.clear(); }
+  function clear() { birds.forEach((b) => { finishAct(b); dropFlight(b, false); }); birds = []; hideouts.clear(); }
 
   return {
     add, get, remove, schedule, update, items, drawOverlays, drawThoughtAt, thoughtSpot, thoughtBubbles, birdAt, wantedAt, greet, celebrate, showEmote,

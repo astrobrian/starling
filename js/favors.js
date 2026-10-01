@@ -2,7 +2,7 @@
 const Favors = (() => {
   const KINDS = {};
 
-  const ORDER = ["moment", "scene", "when", "repeat", "meet", "still", "near", "find", "fetch", "give", "tap", "outside",
+  const ORDER = ["resume", "moment", "scene", "when", "repeat", "meet", "still", "near", "find", "fetch", "give", "tap", "outside",
     "greet", "choose", "say", "bird", "act", "magpie", "hold", "friend", "phase", "world", "restore", "guide", "thought", "emote",
     "sound", "wait", "learn", "hint"];
   const ENGAGING = new Set(["moment", "scene", "find", "fetch", "give", "tap", "still", "greet", "choose", "say", "act"]);
@@ -30,6 +30,44 @@ const Favors = (() => {
       }
     }
     return last;
+  }
+
+  KINDS.resume = (s, K, ctx) => { if (ctx.favor && ctx.key) K.mark(`${ctx.key}.${s.resume}`); };
+
+  function resumeAt(steps, isDone, key) {
+    const list = asSteps(steps || []);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      if (s && typeof s === "object" && kindOf(s) === "resume" && isDone(`${key}.${s.resume}`)) return i;
+    }
+    return -1;
+  }
+
+  function stepsLeft(f, isDone, key) {
+    const steps = asSteps(f.steps || []), at = resumeAt(steps, isDone, key);
+    return at < 0 ? { steps, resumed: false } : { steps: [...asSteps(steps[at].steps || []), ...steps.slice(at + 1)], resumed: true };
+  }
+
+  function holdingAt(f, isDone, key) {
+    const steps = asSteps(f.steps || []), at = resumeAt(steps, isDone, key);
+    return at < 0 ? null : steps[at].hold || null;
+  }
+
+  async function play(f, K, ctx) {
+    const steps = asSteps(f.steps || []);
+    const at = resumeAt(steps, K.done, ctx.key);
+    if (at < 0) return run(steps, K, ctx);
+    const cp = steps[at];
+    ctx.resumed = cp.resume;
+    K.hold(cp.hold || null);
+    await run(cp.steps, K, ctx);
+    if (K.stale && K.stale()) return null;
+    const lead = cp.lead !== false && steps.slice(0, at).find((s) => s && typeof s === "object" && kindOf(s) === "meet");
+    if (lead) {
+      await run([{ ...lead, far: 0.01 }], K, ctx);
+      if (K.stale && K.stale()) return null;
+    }
+    return run(steps.slice(at + 1), K, ctx);
   }
 
   KINDS.say = async (s, K, ctx) => {
@@ -76,7 +114,7 @@ const Favors = (() => {
   KINDS.scene = (s, K, ctx) => K.scripted(() => run(s.scene, K, ctx));
 
   KINDS.moment = (s, K, ctx) => {
-    const m = typeof Moments !== "undefined" && Moments[s.moment];
+    const m = Moments[s.moment];
     if (!m) { warn(`no moment "${s.moment}" in js/moments.js`); return null; }
     const playing = m(s, K, ctx);
     if (s.wait === false) { Promise.resolve(playing).catch((e) => setTimeout(() => { throw e; })); return null; }
@@ -90,7 +128,7 @@ const Favors = (() => {
     if (had) {
       if (s.look !== undefined) {
         b.look = s.look ? K.lookWith(BIRDS[b.species], s.look) : BIRDS[b.species];
-        if (s.portrait && typeof setPortraitLook === "function") setPortraitLook(b.species, s.look || null);
+        if (s.portrait) setPortraitLook(b.species, s.look || null);
       }
       if (s.thought !== undefined) b.thought = s.thought;
       if (s.pose) b.pose = s.pose;
@@ -113,7 +151,7 @@ const Favors = (() => {
     if (s.emote) Wildlife.showEmote(b, s.emote);
     if (s.celebrate) Wildlife.celebrate(b);
     if (s.act) {
-      const acting = birdAct(b, s.act, s.seconds);
+      const acting = Wildlife.act(b, s.act, s.seconds, { cueEvery: s.cueEvery });
       if (!goesOn(s)) await acting;
     }
     if (s.leave) Wildlife.leave(b, s.leave === "forGood");
@@ -123,50 +161,48 @@ const Favors = (() => {
 
   const goesOn = (s) => s.wait === false || s.seconds === 0 || (s.seconds === undefined && ["sleep", "pant"].includes(s.act));
 
-  async function birdAct(b, name, seconds) {
-    if (typeof Wildlife.act === "function") return Wildlife.act(b, name, seconds);
-    if (name === "dance" || name === "jump") Wildlife.celebrate(b);
-    else if (name === "sing") { Wildlife.showEmote(b, "note"); Wildlife.greet(b); }
-    else if (name === "sleep") Wildlife.showEmote(b, "zzz");
-    else if (name === "drink" || name === "bathe") b.pose = "peck";
-    return null;
-  }
-
   KINDS.act = async (s, K) => {
     if (s.on === "magpie") {
-      const acting = typeof magpieAct === "function" ? magpieAct(s.act, s.seconds) : K.wait(0.6);
+      const acting = Magpie.act(s.act, s.seconds);
       if (goesOn(s)) return null;
       return acting;
     }
     if (s.bird) {
       const b = K.bird(s.bird);
       if (!b) return null;
-      const acting = birdAct(b, s.act, s.seconds);
+      const acting = Wildlife.act(b, s.act, s.seconds, { cueEvery: s.cueEvery });
       return goesOn(s) ? null : acting;
     }
-    if (typeof Player !== "undefined" && Player && typeof Player.act === "function") return Player.act(s.act);
-    K.emote("her", s.act === "sing" ? "note" : "sparkles");
-    return K.wait(0.6);
+    return Player.act(s.act);
   };
 
-  KINDS.meet = async (s, K) => {
+  KINDS.meet = async (s, K, ctx = {}) => {
     const b = K.bird(s.meet);
     if (!b) { warn(`no bird "${s.meet}" to meet`); return null; }
     const her = K.herFeet();
     const far = Math.hypot(her.x - b.x, her.y - b.y) > (s.far || 6) * TILE;
-    if (s.lead && far) await K.say(s.lead);
-    K.G.hint = s.hint !== undefined ? s.hint : s.lead || null;
+    const lead = s.friendLead && K.isFriend(b.species) ? s.friendLead : s.lead;
+    if (lead && far) await K.say(lead);
+    K.G.hint = s.hint !== undefined ? s.hint : lead || null;
     K.G.guide = () => (scene.name === "garden" && !b.gone ? { x: b.x, y: b.y - 10, edgeOnly: true, top: Wildlife.headTop(b).y, bottom: b.y } : null);
-    const ahead = far && !!s.lead && !!s.ahead;
+    const ahead = far && !!lead && !!s.ahead;
     if (ahead) {
-      const side = K.herFeet().x < b.x ? -1 : 1;
-      magpieFlyTo("perch", b.x + side * 24, b.y + 2, b.y + 2.5);
-      companion.faceLeft = side > 0;
+      const sortY = b.sortY !== null && b.sortY !== undefined ? b.sortY : null;
+      const itsTree = (t) => sortY !== null && Math.abs(t.footY + 0.5 - sortY) < 0.01;
+      const first = K.herFeet().x < b.x ? -1 : 1;
+      const side = [first, -first].find((d) => K.clearOfThings(K.birdBox(b.x + d * 24, b.y + 2), itsTree)) || first;
+      Magpie.flyTo("perch", b.x + side * 24, b.y + 2, (sortY !== null ? sortY : b.y + 2) + 0.5);
+      Magpie.face(side > 0);
     }
     if (s.by === "tap") await new Promise((ok) => { b.onTap = () => { b.onTap = null; Wildlife.greet(b); ok(); }; });
-    else await K.talkTo(b);
+    else {
+      K.G.onMagpie = () => { Magpie.joy(); Sound.chirp(MAGPIE_VOICE.chirp, MAGPIE_VOICE.pitch); K.walkToBird(b); return true; };
+      const how = await K.talkTo(b, s.close !== undefined ? s.close : 2.5);
+      K.G.onMagpie = null;
+      if (how === "tap") ctx.metByTap = { bird: b, at: performance.now() };
+    }
     K.G.hint = null; K.G.guide = null;
-    if (ahead) magpieFlyTo("follow");
+    if (ahead) Magpie.flyTo("follow");
     return b;
   };
 
@@ -207,7 +243,7 @@ const Favors = (() => {
           undo.push(() => { K.G.onMagpie = null; });
         } else if (ref === "roof") {
           const stop = K.listen("roof", (t) => done(t));
-          K.G.onRoof = () => { done("roof"); magpieSays(THINGS.roof.name); return true; };
+          K.G.onRoof = () => { done("roof"); Magpie.says(THINGS.roof.name); return true; };
           undo.push(stop, () => { K.G.onRoof = null; });
         } else if (ref && ref.bird) {
           const bird = K.bird(ref.bird);
@@ -282,7 +318,8 @@ const Favors = (() => {
       if (!K.fits(from, t) || K.holding()) return;
       K.hold(item);
       if (s.emote) K.emote("her", s.emote);
-      if (s.take) take(t, place, K, ctx);
+      if (s.take && s.keep) removeThing(t, K.worldOf(place));
+      else if (s.take) take(t, place, K, ctx);
     });
     await K.until(() => K.holding() === item);
     stop();
@@ -304,8 +341,7 @@ const Favors = (() => {
     spares.forEach((t) => take(t, place, K, ctx));
     let lost = w.things.find((t) => t.lost && t.type === type);
     if (!lost) {
-      const at = s.at || [0, 0];
-      lost = addThing({ type, x: at[0], y: at[1], variant: s.variant || 0 }, w);
+      lost = addThing(K.placed({ type, at: s.at || [0, 0], variant: s.variant || 0 }, place), w);
       lost.lost = true;
     }
     if (s.hint !== undefined) K.G.hint = s.hint;
@@ -319,7 +355,7 @@ const Favors = (() => {
     ctx.taken = (ctx.taken || []).filter((x) => !spares.includes(x.t));
   };
 
-  KINDS.give = async (s, K) => {
+  KINDS.give = async (s, K, ctx = {}) => {
     const item = s.give;
     const targets = [].concat(s.to || [], s.or || []);
     if (s.hint !== undefined) K.G.hint = s.hint;
@@ -364,6 +400,9 @@ const Favors = (() => {
           stops.push(K.listen(typeOf(target), (t) => { if (K.fits(target, t) && K.holding() === item) finish(t); }));
         }
       }
+      const met = ctx.metByTap;
+      ctx.metByTap = null;
+      if (met && performance.now() - met.at < 1500 && armed.includes(met.bird) && K.holding() === item) finish(met.bird);
     });
     stops.forEach((stop) => stop());
     armed.forEach((b) => { b.onReach = null; });
@@ -402,12 +441,14 @@ const Favors = (() => {
   };
 
   const ALSO = {
+    resume: ["hold"],
     bird: ["thought", "act", "wait", "emote"], act: ["bird", "wait"], meet: ["hint"],
     near: ["magpie", "hint", "guide"], still: ["near", "hint"], tap: ["hint", "guide"],
     greet: ["hint"], fetch: ["hint", "guide", "emote"], find: ["hint"],
     give: ["thought", "hint", "guide", "emote"],
   };
   const SPECIAL = new Set(["her", "door", "magpie", "roof"]);                 // places and targets that aren't things
+  const FRAME_KEYS = { goHome: ["freeFor", "stillFor"], evening: ["homeIn", "sunsetFor", "nightFalls", "nightWait", "magpieFlies", "starEvery", "groupRest", "hurry", "music"] };
   const THING_KEYS = new Set(["thing", "tap", "sortAfter", "tree", "bush", "feeder", "in", "into", "from", "near", "guide", "to", "or", "at"]);
   const ICON_KEYS = new Set(["thought", "emote", "item", "icon", "airIcon"]);
   const IN_BEAK = new Set(["flower", "persimmon", "crowFeather"]);            // (js/props.js drawInBeak draws these itself)
@@ -438,7 +479,7 @@ const Favors = (() => {
           const more = Object.keys(raw).filter((k) => k !== kind && k !== "learn" && ORDER.includes(k) && !(ALSO[kind] || []).includes(k));
           if (more.length) say(`${where}: a step with two kinds (${kind} and ${more.join(", ")}): only ${kind} would play: ${JSON.stringify(raw)}`);
         }
-        for (const key of ["say", "choose", "lead", "hint"]) if (typeof raw[key] === "string" && raw[key] !== "sunset" && !hasLine(raw[key])) say(`${where}: no line "${raw[key]}"`);
+        for (const key of ["say", "choose", "lead", "friendLead", "hint"]) if (typeof raw[key] === "string" && raw[key] !== "sunset" && !hasLine(raw[key])) say(`${where}: no line "${raw[key]}"`);
         if (kind === "moment" && typeof Moments !== "undefined" && !Moments[raw.moment]) say(`${where}: no moment "${raw.moment}"`);
         if (raw.lines) for (const id of Object.values(raw.lines)) if (!hasLine(id)) say(`${where}: no line "${id}"`);
         if (raw.greet) for (const id of Object.values(raw.greet).flat()) if (!hasLine(id)) say(`${where}: no line "${id}"`);
@@ -461,6 +502,18 @@ const Favors = (() => {
       look(d.out, `${where} going out`);
       look(d.again, `${where} again`);
       for (const f of d.favors || []) look(f.steps, `${where} ${f.id}`);
+      const againWords = [];
+      deep(d.again, (k, v) => { if (k === "learn") againWords.push(...[].concat(v)); });
+      if (againWords.length) say(`${where} again: lights up ${againWords.join(", ")} (again steps can play more than once: light words up in the day's own steps)`);
+      const resumes = (node) => { let n = 0; deep(node, (k) => { if (k === "resume") n++; }); return n; };
+      for (const part of [morning, d.out, d.again, (d.night || {}).hook]) if (resumes(part)) say(`${where}: a resume step outside a favor (only a favor picks up where it stood)`);
+      for (const f of d.favors || []) {
+        const top = asSteps(f.steps || []).filter((s) => s && typeof s === "object" && kindOf(s) === "resume");
+        if (resumes(f.steps) !== top.length) say(`${where} ${f.id}: a resume step inside a scene, a reply or another step (only in the favor's own list of steps)`);
+        const names = top.map((s) => s.resume);
+        if (new Set(names).size !== names.length) say(`${where} ${f.id}: two resume steps with the same name (${names.join(", ")})`);
+        for (const s of top) { let teaches = !!s.learn; deep(s.steps, (k) => { if (k === "learn") teaches = true; }); if (teaches) say(`${where} ${f.id}: the resume step "${s.resume}" lights up words (it only sets the scene)`); }
+      }
       const night = d.night || {};
       for (const key of ["lookUp", "tomorrow"]) if (night[key] && !hasLine(night[key])) say(`${where} night: no line "${night[key]}"`);
       for (const l of [].concat(night.lines || [])) {
@@ -504,6 +557,17 @@ const Favors = (() => {
       for (const id of named) if (!ids.has(id)) say(`Diary page ${n}: no favor "${id}" on Day ${n} (data/days/day${n}.js)`);
     }
 
+    for (const [when, id] of Object.entries(window.FRAME_LINES || {})) if (id && !hasLine(id)) say(`The frame's ${when}: no line "${id}" (data/dialogue.js FRAME_LINES)`);
+    for (const when of ["headHome", "morningReply"]) { const l = lines[(window.FRAME_LINES || {})[when]]; if (!l || !(l.replies || []).length) say(`The frame's ${when} needs a line with replies (data/dialogue.js FRAME_LINES)`); }
+    for (const key of ["day", "sleepAsk", "sleepYes", "sleepNo", "skipEvening"]) if (!(window.UI_TEXT || {})[key]) say(`data/ui-text.js: no ${key}`);
+    const F = window.DAY_FRAME || {};
+    if (typeof F.breath !== "number") say("data/game-settings.js DAY_FRAME: no breath (seconds)");
+    for (const [part, keys] of Object.entries(FRAME_KEYS)) {
+      for (const k of keys) { const v = (F[part] || {})[k]; if (k === "music" ? typeof v !== "string" : typeof v !== "number") say(`data/game-settings.js DAY_FRAME: no ${part}.${k}`); }
+    }
+    const his = ((window.HUSBAND || {}).lines) || {};
+    for (const key of ["morning", "goodDay", "home", "goodnight"]) if (!(his[key] || []).length) say(`data/husband.js: no ${key} line`);
+
     numbers.forEach((n, i) => { if (n !== i + 1) say(`Day ${i + 1} is missing (the days go ${numbers.join(", ")})`); });
     if (typeof document !== "undefined") {
       for (const el of document.querySelectorAll('script[src*="data/days/day"]')) {
@@ -515,5 +579,5 @@ const Favors = (() => {
     return problems;
   }
 
-  return { run, check, kinds: KINDS };
+  return { run, play, stepsLeft, holdingAt, check, kinds: KINDS };
 })();

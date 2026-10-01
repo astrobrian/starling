@@ -57,8 +57,7 @@ function moonlit(c, side = null, rimColor = PALETTE.starBand, opts = {}) {
 function fillWhat(el, stars, friends, most = 6, faceSize = 40) {
   el.innerHTML = "";
   const dpr = window.devicePixelRatio || 1;
-  const star = iconFromGrid(ICONS.star).toCanvas(), k = Math.max(1, Math.round((26 * dpr) / star.width));
-  star.style.width = (star.width * k) / dpr + "px";
+  const star = pixelIcon("star", 26);                     // (js/ui.js)
   const n = document.createElement("span");
   n.textContent = stars;
   el.append(star, n);
@@ -75,7 +74,7 @@ function fillWhat(el, stars, friends, most = 6, faceSize = 40) {
 
 function makeTitleScene(W, H, opts = {}) {
   const morning = !!opts.morning;
-  const riverY = (x) => H * 0.78 - x * (H * 0.72 / W);
+  const riverY = (x) => H * 0.06 + x * (H * 0.72 / W);
 
   const bandColors = morning ? [PALETTE.daySky0, PALETTE.daySky1, PALETTE.daySky2, PALETTE.daySky3] : nightBands();
   const bandAt = (x, y) => skyBandAt(x, y, W, H);
@@ -193,7 +192,7 @@ function makeTitleScene(W, H, opts = {}) {
 
   function bigStar(ctx, x, y, time, phase, bright = false) {
     const tw = 0.75 + 0.25 * Math.sin(time * 1.3 + phase), arm = bright ? 3 : 2;
-    Daylight.drawLight(ctx, x, y, bright ? 11 : 6, "starBright", bright ? tw + 0.25 : tw * 0.85);
+    Daylight.drawLight(ctx, x, y, bright ? 11 : 8, "starBright", bright ? tw + 0.25 : tw * 0.85);
     ctx.fillStyle = bright ? PALETTE.starBright : PALETTE.starlight;
     ctx.fillRect(x - arm, y, arm * 2 + 1, 1);
     ctx.fillRect(x, y - arm, 1, arm * 2 + 1);
@@ -202,7 +201,37 @@ function makeTitleScene(W, H, opts = {}) {
     ctx.fillRect(x, y, 1, 1);
   }
 
+  const boxes = opts.clear || [];
+  const away = (x, y, b) => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1));
+  const clearOf = (x, y, room) => boxes.every((b) => away(x, y, b) >= room);
+
+  const vega = { x: Math.round(W * 0.64) };
+  vega.y = Math.round(riverY(vega.x) - H * 0.24);
+  const altair = { x: Math.round(W * 0.53), y: ground - 52 };
+  for (let y = Math.min(ground - 52, Math.round(riverY(altair.x) + H * 0.12)); y <= ground - 44; y++) {
+    if (clearOf(altair.x, y, 10)) { altair.y = y; break; }
+  }
+
   const night = typeof Moon !== "undefined" ? Moon.forDay(opts.day === undefined ? 1 : opts.day) : null;
+  const MOON_R = 8, treetops = ground - 30;
+  const moonAt = (() => {
+    if (morning || (night && !night.up)) return { x: 0, y: 0 };      // (no moon to draw)
+    const sky = night || { az: 233, alt: 30 };
+    const want = { x: (W * (sky.az - 90)) / 180, y: treetops - (sky.alt / 30) * (treetops - H * 0.4) };
+    const r = MOON_R, home = { x0: hx, y0: hy, x1: hx + house.canvas.width, y1: ground };
+    const perch = { x0: bird.x - 14, y0: bird.y - 22, x1: bird.x + 14, y1: bird.y };
+    const fits = (x, y) => x >= vega.x + r + 10 && y >= vega.y + 12 && clearOf(x, y, r + 14)
+      && Math.hypot(x - vega.x, y - vega.y) >= r + 22 && Math.hypot(x - altair.x, y - altair.y) >= r + 14
+      && away(x, y, home) >= r + 3 && (opts.magpie === false || away(x, y, perch) >= r + 3);
+    let best = null;
+    for (let y = r + 3; y <= treetops; y++) {
+      for (let x = r + 3; x <= W - r - 3; x++) {
+        const d = Math.hypot(x - want.x, y - want.y);
+        if ((!best || d < best.d) && fits(x, y)) best = { x, y, d };
+      }
+    }
+    return best || { x: Math.round(Math.max(r + 3, Math.min(W - r - 3, want.x))), y: Math.round(want.y) };
+  })();
   function moon(ctx, cx, cy) {
     if (night) { if (night.up) Moon.draw(ctx, cx, cy, 8, night); return; }
     const r = 8;
@@ -225,10 +254,9 @@ function makeTitleScene(W, H, opts = {}) {
       ctx.fillStyle = Math.sin(time * s.rate + s.phase) > 0.75 ? PALETTE.starBright : PALETTE.starFaint;
       ctx.fillRect(s.x, s.y, 1, 1);
     }
-    const vx = Math.round(W * 0.84), ax = Math.round(W * 0.56);
-    bigStar(ctx, vx, Math.round(riverY(vx) + H * 0.075), time, 0, true);
-    bigStar(ctx, ax, Math.round(riverY(ax) - H * 0.1), time, 2);
-    moon(ctx, Math.round(opts.moonX ? W * opts.moonX : W - Math.min(44, W * 0.1)), Math.round(H * 0.17));
+    bigStar(ctx, vega.x, vega.y, time, 0, true);
+    bigStar(ctx, altair.x, altair.y, time, 2);
+    moon(ctx, moonAt.x, moonAt.y);
     if (shooting) {
       const k = (time - shooting.at) / 0.9;
       if (k >= 0 && k < 1) {
@@ -272,7 +300,8 @@ function makeTitleScene(W, H, opts = {}) {
     }
   }
 
-  return { draw, house: { x: hx, y: hy, canvas: house.canvas }, ground, magpie: { x: bird.x, y: bird.y - 8 } };
+  return { draw, house: { x: hx, y: hy, canvas: house.canvas }, ground, magpie: { x: bird.x, y: bird.y - 8 },
+    stars: { moon: { ...moonAt, r: MOON_R, up: !!(night && night.up) }, weaver: vega, cowherd: altair } };
 }
 
 const Title = !document.getElementById("title-sky") ? null : (() => {
@@ -294,10 +323,19 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     canvas.style.width = (W * scale) / dpr + "px";
     canvas.style.height = (H * scale) / dpr + "px";
     ctx.imageSmoothingEnabled = false;
-    scene = makeTitleScene(W, H, { day: callbacks.day ? callbacks.day() : 1 });      // (the moon of her day)
+    const k = dpr / scale;                                     // (game pixels in a point)
+    const boxOf = (el) => {
+      if (!el || el.classList.contains("hidden") || !el.getClientRects().length) return null;
+      const r = el.getBoundingClientRect();
+      return { x0: r.left * k, y0: r.top * k, x1: r.right * k, y1: r.bottom * k };
+    };
+    const shown = ["title-name", "title-continue", "title-new", "title-fullscreen", "title-paste"].map($);
+    const clear = [...shown, ...$("title-row").children].map(boxOf).filter(Boolean);
+    scene = makeTitleScene(W, H, { day: callbacks.day ? callbacks.day() : 1, clear });
   }
 
-  const CARDS = ["confirm", "settings", "credits", "backup-card", "backup-offer", "diary", "fullscreen-card"];
+  const CARDS = ["confirm", "settings", "credits", "backup-card", "backup-offer", "diary", "fullscreen-card", "home-card", "stars-here"];
+  const cardShowing = () => CARDS.some((id) => { const e = $(id); return !!e && !e.classList.contains("hidden"); });
   function loop(now) {
     if (!open) return;
     clock += Math.min(0.05, (now - last) / 1000 || 0);
@@ -308,11 +346,79 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
       nextShooting = clock + 6 + hash2(i, 3, 353) * 6;
     }
     scene.draw(ctx, clock, shooting, hopAt);
-    $("title").classList.toggle("under-card", CARDS.some((id) => { const e = $(id); return !!e && !e.classList.contains("hidden"); }));
+    $("title").classList.toggle("under-card", cardShowing());
     requestAnimationFrame(loop);
   }
 
   const fill = (el, text) => { el.textContent = text; };
+
+  const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const homeScreen = PARAMS.has("homeScreen") || navigator.standalone === true || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+  const kakao = PARAMS.has("kakao") || /KAKAOTALK/i.test(navigator.userAgent);
+  const homeGame = homeScreen && (apple || PARAMS.has("homeScreen"));     // (the Home Screen game on her iPhone)
+
+  const labels = (text) => text && text.replace(/\{(paste|copy|fullScreen)\}/g, (m, k) => ({ paste: UI_TEXT.homePaste[0], copy: UI_TEXT.fullScreenCopy[0], fullScreen: UI_TEXT.fullScreen })[k]);
+  const words = (el, en, ko) => withKorean(el, labels(en), labels(ko));
+
+  let code = null;                      // her code, made as the card opens (so the copy is inside her tap)
+  function fullscreenCard() {
+    const steps = $("fullscreen-steps"), has = callbacks.hasProgress();
+    const step = (en, ko) => { const li = document.createElement("li"); words(li, en, ko); steps.appendChild(li); return li; };
+    steps.replaceChildren();
+    code = null;
+    if (has) {
+      const li = step(""), copy = document.createElement("button"), copied = document.createElement("span");
+      copy.id = "fullscreen-copy";
+      words(copy, ...UI_TEXT.fullScreenCopy);
+      copy.addEventListener("click", copyStars);
+      copied.id = "fullscreen-copied";
+      copied.className = "hidden";
+      words(copied, ...UI_TEXT.fullScreenCopied);
+      li.className = "copy-step";
+      li.append(copy, copied);
+      Backup.makeCode().then((c) => { code = c; }).catch(() => {});
+    }
+    if (kakao) step(...UI_TEXT.fullScreenKakao);
+    for (const [en, ko] of UI_TEXT.fullScreenSteps) step(en, ko);
+    if (has) step(...UI_TEXT.fullScreenPaste);
+    if (has) words($("fullscreen-note"), ...UI_TEXT.fullScreenBackup); else $("fullscreen-note").replaceChildren();
+    $("fullscreen-card").classList.remove("hidden");
+  }
+
+  function copyStars() {
+    const copied = () => { $("fullscreen-copied").classList.remove("hidden"); $("fullscreen-copy").classList.add("done"); };
+    const byHand = () => Backup.save();
+    try {
+      if (code && navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(code).then(copied, byHand); return; }
+      if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+        const text = Backup.makeCode().then((c) => new Blob([c], { type: "text/plain" }));
+        navigator.clipboard.write([new ClipboardItem({ "text/plain": text })]).then(copied, byHand);
+        return;
+      }
+    } catch (e) { /* (by hand, below) */ }
+    byHand();
+  }
+
+  let homeAsked = false, startedNew = false;
+  function homeCard() {
+    homeAsked = true;
+    $("home-card").classList.remove("hidden");
+  }
+  const askAgain = () => { if (open && homeGame && !startedNew && !callbacks.hasProgress()) homeCard(); };
+  function pasteStars(fromQuestion) {
+    let reading = null;
+    try { if (navigator.clipboard && navigator.clipboard.readText) reading = navigator.clipboard.readText(); } catch (e) { reading = null; }
+    const opts = { back: fromQuestion ? askAgain : null };
+    const take = (text, note) => { $("home-card").classList.add("hidden"); Backup.paste(text, note, opts); };
+    const refused = () => take("", UI_TEXT.homeRefused);
+    if (!reading) { refused(); return; }
+    reading.then((text) => take(text, UI_TEXT.homeNoCode.map(labels)), refused);
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!homeGame || startedNew) return;
+    if (document.hidden) { homeAsked = false; Backup.backIfEmpty(); return; }
+    if (!homeAsked && !cardShowing()) askAgain();
+  });
 
   function unlock(startsGame) {
     if (unlocked) return;
@@ -364,23 +470,30 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
       }
     });
     window.addEventListener("keydown", (e) => {
-      if (!open || e.key !== "Enter" || !$("confirm").classList.contains("hidden") || !$("credits").classList.contains("hidden")) return;
+      if (!open || e.key !== "Enter" || ["confirm", "credits", "home-card", "stars-here"].some((id) => !$(id).classList.contains("hidden"))) return;
       (cb.hasProgress() ? cont : fresh).click();
     });
 
-    const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const homeScreen = navigator.standalone === true || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
-    const withKorean = (el, en, ko) => { el.textContent = en; const k = document.createElement("small"); k.className = "korean"; k.textContent = ko; el.appendChild(k); };
     fill($("title-fullscreen"), UI_TEXT.fullScreen);
     $("title-fullscreen").classList.toggle("hidden", !(apple && !homeScreen) && !PARAMS.has("fullscreenTip"));
-    withKorean($("fullscreen-title"), UI_TEXT.fullScreen, UI_TEXT.fullScreenKorean);
-    const kakao = /KAKAOTALK/i.test(navigator.userAgent);
-    for (const [en, ko] of [...(kakao ? [UI_TEXT.fullScreenKakao] : []), ...UI_TEXT.fullScreenSteps]) { const li = document.createElement("li"); withKorean(li, en, ko); $("fullscreen-steps").appendChild(li); }
-    withKorean($("fullscreen-note"), UI_TEXT.fullScreenNote[0], UI_TEXT.fullScreenNote[1]);
+    words($("fullscreen-title"), UI_TEXT.fullScreen, UI_TEXT.fullScreenKorean);
     fill($("fullscreen-done"), UI_TEXT.done);
-    $("title-fullscreen").addEventListener("click", () => { unlock(false); $("fullscreen-card").classList.remove("hidden"); });
+    $("title-fullscreen").addEventListener("click", () => { unlock(false); fullscreenCard(); });
     $("fullscreen-done").addEventListener("click", () => $("fullscreen-card").classList.add("hidden"));
-    $("fullscreen-card").addEventListener("pointerdown", (e) => { if (e.target === $("fullscreen-card")) $("fullscreen-card").classList.add("hidden"); });
+    $("fullscreen-card").addEventListener("click", (e) => { if (!e.target.closest("button")) $("fullscreen-card").classList.add("hidden"); });
+
+    words($("home-card-text"), ...UI_TEXT.homeAsk);
+    words($("home-paste"), ...UI_TEXT.homePaste);
+    words($("home-new"), ...UI_TEXT.homeNew);
+    $("home-card-icon").replaceChildren(pixelIcon("star", 30));
+    $("home-paste").addEventListener("click", () => { unlock(false); pasteStars(true); });
+    $("home-new").addEventListener("click", () => { startedNew = true; $("home-card").classList.add("hidden"); unlock(false); });
+    words($("title-paste"), ...UI_TEXT.homePaste);
+    $("title-paste").classList.toggle("hidden", !homeGame || saved.get("pastedHere") === true);
+    $("title-paste").addEventListener("click", () => { unlock(false); pasteStars(false); });
+
+    $("stars-here-ok").textContent = UI_TEXT.ok;
+    $("stars-here-ok").addEventListener("click", () => $("stars-here").classList.add("hidden"));
 
     fill($("credits-title"), UI_TEXT.credits);
     const d = window.DEDICATION || {};
@@ -412,13 +525,13 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     $("menu").addEventListener("pointerdown", (e) => { if (e.target === $("menu")) $("menu").classList.add("hidden"); });
 
     window.addEventListener("resize", () => open && resize());
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (open) resize(); });
     show();
   }
 
   let onYes = null;
   function ask(text, yes, showWhat, then, korean) {
-    fill($("confirm-text"), text);
-    if (korean) { const k = document.createElement("small"); k.className = "korean"; k.textContent = korean; $("confirm-text").appendChild(k); }
+    withKorean($("confirm-text"), text, korean);
     fill($("confirm-yes"), yes);
     const what = $("confirm-what");
     what.innerHTML = "";
@@ -437,11 +550,22 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     resize();
     last = performance.now();
     requestAnimationFrame(loop);
+    const came = Backup.broughtIn();
+    if (came) greet(came);
+    else if (!homeAsked) askAgain();
+  }
+
+  function greet(sum) {
+    fillWhat($("stars-here-what"), sum.stars, sum.friends, 6);
+    words($("stars-here-text"), ...UI_TEXT.starsHere);
+    $("stars-here").classList.remove("hidden");
   }
 
   function close() {
     open = false;
     $("title").classList.add("hidden");
+    $("home-card").classList.add("hidden");
+    $("stars-here").classList.add("hidden");
     document.body.classList.remove("on-title");
   }
 
@@ -452,6 +576,13 @@ const Title = !document.getElementById("title-sky") ? null : (() => {
     isOpen: () => open,
     showMenu: () => $("menu").classList.remove("hidden"),
     ask,
+    sky: () => {
+      if (!scene) return null;
+      const r = canvas.getBoundingClientRect(), k = r.height / H;
+      const at = (p) => ({ x: Math.round(r.left + p.x * k), y: Math.round(r.top + p.y * k) });
+      const { moon, weaver, cowherd } = scene.stars;
+      return { moon: { ...at(moon), r: Math.round(moon.r * k), up: moon.up }, weaver: at(weaver), cowherd: at(cowherd) };
+    },
     bigButton: () => {
       if (!open) return null;
       const b = $("title-continue").classList.contains("hidden") ? $("title-new") : $("title-continue");

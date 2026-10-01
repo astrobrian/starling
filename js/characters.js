@@ -33,16 +33,48 @@ function renderPlayer(look = window.PLAYER_LOOK) {
       },
       kiss: { left: kissLeft, right: flipCanvas(kissLeft) },
       pour: { left: pourLeft, right: flipCanvas(pourLeft) },
+      pourHigh: (() => { const l = pourHighFrame(look); return { left: l, right: flipFrame(l) }; })(),
     },
   };
 }
 const POUR_HAND = { x: 2.2, y: 17.6 };
 
+const POUR_PAD = 5;
+const POUR_HAND_HIGH = { x: -2.4, y: 10.4 };
+const POUR_HIGH_ABOVE = 5;      // (what she pours into is up high when it's this many pixels above her feet, or more)
+function pourHighFrame(look) {
+  const base = renderPlayerView(look, "left", 0, false, false, { arms: () => {} });      // (no near arm there: it's raised, below)
+  const P = POUR_PAD, b = new PixelBuffer(14 + P, 30);
+  const sh = [6.8 + P, 18.4], bow = [-1.6 + P, 16.2], hand = [POUR_HAND_HIGH.x - 1 + P, POUR_HAND_HIGH.y - 1];
+  for (let t = 0; t <= 1.001; t += 0.05) {
+    const u = 1 - t, x = u * u * sh[0] + 2 * u * t * bow[0] + t * t * hand[0], y = u * u * sh[1] + 2 * u * t * bow[1] + t * t * hand[1];
+    b.circle(x, y, 1.15, look.outfit.top, { shadeAs: [4 + P, 15, 6, 6] });
+  }
+  b.circle(...hand, 1.15, look.skin, { flat: true });
+  const arm = outline(b).toCanvas();
+  const c = document.createElement("canvas");
+  c.width = base.width + P; c.height = base.height;
+  const g = c.getContext("2d");
+  g.drawImage(base, P, 0);
+  g.drawImage(arm, 0, 0);                        // (the near arm, in front of her)
+  c.ox = P; c.oy = 0;
+  return c;
+}
+function flipFrame(src) {
+  const c = flipCanvas(src);
+  c.ox = src.width - 16 - (src.ox || 0); c.oy = src.oy || 0;
+  return c;
+}
+
+function herNoteIcon(look = window.PLAYER_LOOK) {
+  return { ...ICONS.note, colors: { ...ICONS.note.colors, N: look.outfit.top } };
+}
+
 const CHEER_PAD = { x: 3, y: 2 };
 function raisedArms(frame, look, view) {
   const P = CHEER_PAD, b = new PixelBuffer(14 + 2 * P.x, 30 + P.y);
   for (const s of [-1, 1]) {
-    const sh = [7 + s * 4 + P.x, 18.4 + P.y], bow = [7 + s * 10.4 + P.x, 11 + P.y], hand = [7 + s * 6.2 + P.x, 1 + P.y];
+    const sh = [7 + s * 4 + P.x, 18.4 + P.y], bow = [7 + s * 9.4 + P.x, 11 + P.y], hand = [7 + s * 8.4 + P.x, 7 + P.y];
     for (let t = 0; t <= 1.001; t += 0.05) {
       const u = 1 - t, x = u * u * sh[0] + 2 * u * t * bow[0] + t * t * hand[0], y = u * u * sh[1] + 2 * u * t * bow[1] + t * t * hand[1];
       b.circle(x, y, 1.15, look.outfit.top, { shadeAs: [7 + P.x, 12 + P.y, 11, 10] });
@@ -367,9 +399,11 @@ function drawPourWater(ctx, spout, to, time) {
     ctx.fillStyle = color;
     ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
   };
+  const wide = typeof CUE !== "undefined" && CUE > 1;
   for (let i = 1; i <= n; i++) {
     const [x, y] = at(i / n, 0);
     dot(x, y, (i + run) % 5 === 0 ? PALETTE.cream : RAMPS.pond[1]);
+    if (wide) dot(x - dir, y, RAMPS.pond[1]);
   }
   for (let i = 1; i <= n; i++) { const [x, y] = at(i / n, 0); dot(x + dir, y + 1, RAMPS.pond[2]); }
   for (const spread of [-2.5, 2.5]) {

@@ -43,6 +43,20 @@ function birdEye(out, ex, ey, bird, w = 2, h = 3, blush = true, asleep = false) 
   if (bird.pollen) pollenFace(out, bird, ex, ey, h);
 }
 
+function shineBeak(out, buf, bird, upper) {
+  if (!bird.beakShine) return;
+  const [[ax, ay], [tx, ty]] = upper, len = Math.hypot(tx - ax, ty - ay) || 1;
+  const nx = -(ty - ay) / len, ny = (tx - ax) / len;
+  const xs = upper.map((p) => p[0]), ys = upper.map((p) => p[1]);
+  for (let y = Math.floor(Math.min(...ys)); y <= Math.max(...ys); y++) {
+    for (let x = Math.floor(Math.min(...xs)); x <= Math.max(...xs); x++) {
+      const cx = x + 0.5, cy = y + 0.5;
+      if (!buf.get(x, y) || !pointInPolygon(cx, cy, upper)) continue;
+      if (Math.abs((cx - ax) * nx + (cy - ay) * ny) <= 0.9) out.set(x + 1, y + 1, bird.beakShine);
+    }
+  }
+}
+
 function pollenFace(out, bird, ex, ey, h) {
   const feathers = new Set([bird.head, bird.cap, bird.crest, bird.chest].filter(Boolean).flatMap((c) => rampFor(c) || []).map((c) => c.toLowerCase()));
   const cx = ex + 2.5, cy = ey + h / 2;
@@ -66,7 +80,7 @@ const SONGBIRD_POSES = {
   bob: { tail: 2.5 },
   fly: { wing: "up", legs: 0 },
   drink: { head: [2.6, 5], beak: "down", tail: 3.5 },
-  tipUp: { head: [-0.4, -0.6], tilt: -0.55, tail: -1 },
+  tipUp: { head: [-2.4, -0.6], tilt: -0.55, tail: -1 },       // (the head well back over the body, so looking up reads at any size)
   sing: { head: [-0.5, -0.8], tilt: -0.65, open: 1.3, tail: -1 },
   sing2: { head: [-0.8, -1.2], tilt: -0.8, open: 1.9, tail: -1.5 },
   sleep: { head: [-0.9, 2.4], tilt: 0.45, beak: "tuck", tail: -0.6, body: [1.12, 1.14], legs: 0, asleep: true },
@@ -130,6 +144,7 @@ function songbirdFlap(bird, frame) {
   const bxp = hx + hr * 0.85, byp = hy - beakH * 0.25;
   buf.triangle(bxp, byp, bxp + beakLen, byp + beakH * 0.5, bxp, byp + beakH, bird.beak, { flat: true });
   const out = outline(buf);
+  shineBeak(out, buf, bird, [[bxp, byp], [bxp + beakLen, byp + beakH * 0.5], [bxp, byp + beakH * 0.5]]);
   birdEye(out, Math.round(hx + hr * 0.22) + 1, Math.round(hy - hr * 0.37) + 1, bird, 2, hr < 4 ? 2 : 3);
   return packBird(out, bx, by + ry * 0.93 + 2, hx, hy - hr);
 }
@@ -253,15 +268,17 @@ const BIRD_SHAPES = {
     }
 
     if (P.fanTail) {
-      const cx = bx - rx * 0.55, cy = by - 0.5, R = L + 3.2, a0 = Math.PI * 1.04, a1 = Math.PI * 1.46;
-      const rim = [];
-      for (let i = 0; i <= 10; i++) { const a = a0 + ((a1 - a0) * i) / 10; rim.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]); }
-      buf.polygon([[cx + 0.5, cy + 1.2], ...rim], bird.tail.color, { clip });
-      for (let i = 1; i < 4; i++) {
-        const a = a0 + ((a1 - a0) * i) / 4;
-        buf.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (R - 0.7), cy + Math.sin(a) * (R - 0.7), 1, rampFor(bird.tail.color)[2], { onlyFilled: true, clip });
-        buf.set(Math.floor(cx + Math.cos(a) * (R - 0.4)), Math.floor(cy + Math.sin(a) * (R - 0.4)), null);      // (a notch in the rim between two feathers)
+      const cx = bx - rx * 0.55, cy = by - 0.5, R = L + 3.2, a0 = Math.PI * 1.04, a1 = Math.PI * 1.46, n = 5;
+      const T = rampFor(bird.tail.color), ray = (a, r) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+      for (let i = 0; i < n; i++) {
+        const f0 = a0 + ((a1 - a0) * i) / n, f1 = a0 + ((a1 - a0) * (i + 1)) / n;
+        buf.polygon([[cx + 0.5, cy + 1.2], ...[0, 1, 2, 3].map((k) => ray(f0 + ((f1 - f0) * k) / 3, R))], i % 2 ? T[2] : T[1], { clip, flat: true });
       }
+      const fringe = paletteColor(bird.tail.fringe || T[0]);
+      for (let y = Math.floor(cy - R); y <= cy; y++) for (let x = Math.floor(cx - R); x <= cx; x++) {
+        if ((buf.get(x, y) === T[1] || buf.get(x, y) === T[2]) && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > R - 1.4) buf.set(x, y, fringe);
+      }
+      for (let i = 1; i < n; i++) buf.set(...ray(a0 + ((a1 - a0) * i) / n, R - 0.4), null);      // (a notch in the rim between two feathers)
     }
 
     const body = [bx, by, rx, ry];
@@ -308,6 +325,7 @@ const BIRD_SHAPES = {
     const mark = (dx, dy, mrx, mry, paint, opts) => (tilt ? buf.rotEllipse(...at(dx, dy), mrx, mry, tilt, paint, opts) : buf.ellipse(hx + dx, hy + dy, mrx, mry, paint, opts));
     const cheekScale = bird.cheekSize || 1;
     mark(hr * 0.26, hr * (bird.cheekY || 0.44), hr * 0.41 * cheekScale, hr * 0.26 * cheekScale, bird.cheek, { onlyFilled: true, shadeAs: head });
+    if (P.asleep && bird.sleepFace) mark(hr * 0.22 + 0.2, -hr * 0.37 + 2, 2.4, 1.7, bird.sleepFace, { onlyFilled: true, flat: true });
     if (bird.bib) mark(hr * 0.42, hr * 0.92, hr * 0.3, hr * 0.24, bird.bib, { onlyFilled: true, flat: true });
     if (bird.breastBand) mark(hr * 0.3, hr * 1.0, hr * 0.62, hr * 0.26, bird.breastBand, { onlyFilled: true, flat: true });
     if (bird.neckSpot) buf.circle(...at(-hr * 0.55, hr * 0.55), 1.1, bird.neckSpot, { onlyFilled: true, flat: true });
@@ -319,9 +337,11 @@ const BIRD_SHAPES = {
     const bxp = hx + hr * 0.85, byp = hy - beakH * 0.25;
     let beakTip = [bxp + beakLen, byp + beakH * 0.5];
     const mouth = [];
+    let upperBeak = [[bxp, byp], beakTip, [bxp, byp + beakH * 0.5]];
     if (P.beak === "down") {
       buf.triangle(bxp - 0.6, byp, bxp + beakLen * 0.6, byp + beakLen * 0.9, bxp - 0.6, byp + beakH, bird.beak, { flat: true });
       beakTip = [bxp + beakLen * 0.6, byp + beakLen * 0.9];
+      upperBeak = [[bxp - 0.6, byp], beakTip, [bxp - 0.6, byp + beakH * 0.5]];
     } else if (tilt || P.open) {
       const open = P.open || 0, x0 = hr * 0.85, len = beakLen * (P.beak === "tuck" ? 0.75 : open ? 1.35 : 1);
       const g = [x0, beakH * 0.25], T = [x0 + len, beakH * 0.25];
@@ -330,6 +350,7 @@ const BIRD_SHAPES = {
       buf.polygon(upper, bird.beak, { flat: true });
       buf.polygon(lower, bird.beak, { flat: true });
       beakTip = at(...T);
+      upperBeak = upper;
       if (open) {
         const toward = (p, k) => [upper[2][0] + (p[0] - upper[2][0]) * k, upper[2][1] + (p[1] - upper[2][1]) * k];
         const wedge = [upper[2], toward(upper[1], 0.75), toward(lower[1], 0.75)];
@@ -351,7 +372,8 @@ const BIRD_SHAPES = {
 
     const out = outline(buf);
     for (const [x, y] of mouth) if (!buf.get(x, y)) out.set(x + 1, y + 1, "coral");
-    const [exf, eyf] = at(hr * 0.22, -hr * 0.37);
+    shineBeak(out, buf, bird, upperBeak);
+    const [exf, eyf] = at(hr * 0.22 - (P.asleep ? 0.8 : 0), -hr * 0.37);
     const ex = Math.round(exf) + 1, ey = Math.round(eyf) + 1;
     birdEye(out, ex, ey, bird, 2, hr < 4 ? 2 : 3, true, !!P.asleep);
     if (water !== null) for (let x = Math.round(bx - rx * 1.3); x < bx + rx * 1.4; x += 2) out.set(x + 1, water + 1, RAMPS.pond[0]);   // ripples

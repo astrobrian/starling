@@ -13,14 +13,24 @@ window.UI_TEXT = {
   credits: "Credits",
   fullScreen: "Full screen",
   fullScreenKorean: "전체 화면",
+  fullScreenCopy: ["Copy my stars", "내 별 복사하기"],       // (a button)
+  fullScreenCopied: ["Copied!", "복사했어요!"],
   fullScreenSteps: [
-    ["In Safari, tap Share (a square with an arrow). It may be in the ••• menu.", "사파리에서 공유 버튼(위쪽 화살표가 있는 네모)을 눌러 주세요. ••• 메뉴 안에 있을 수도 있어요."],
+    ["In Safari, tap Share {share}. It may be in the ••• menu.", "사파리에서 공유 버튼을 눌러 주세요. ••• 메뉴 안에 있을 수도 있어요."],
     ["Tap \"Add to Home Screen\", then \"Add\".", "'홈 화면에 추가'를 누르고, '추가'를 눌러 주세요."],
     ["Tap Starling (the magpie icon) on your Home Screen: full screen!", "홈 화면에 새로 생긴 까치 아이콘(Starling)을 누르면, 화면 가득 보여요!"],
   ],
-  fullScreenKakao: ["Opened in KakaoTalk? First open this page in Safari.", "카카오톡에서 열었다면, 먼저 사파리로 열어 주세요."],
-  fullScreenNote: ["The Home Screen game keeps its own save. To bring your stars: here, Settings → Backup → Save; then, in the Home Screen game, Settings → Backup → Load.",
-    "홈 화면 게임은 따로 저장돼요. 지금까지 모은 별을 가져가려면: 여기서 Settings → Backup → Save(저장), 그다음 홈 화면 게임에서 Settings → Backup → Load(불러오기)를 눌러 주세요."],
+  fullScreenKakao: ["Opened in KakaoTalk? Now open this page in Safari.", "카카오톡에서 열었다면, 이제 사파리로 열어 주세요."],
+  fullScreenPaste: ["In the Home Screen game, tap \"{paste}\".", "홈 화면 게임에서 '{paste}'를 눌러 주세요."],
+  fullScreenBackup: ["Or: here, Settings → Backup → Save; then, in the Home Screen game, Settings → Backup → Load.",
+    "또는 여기서 Settings → Backup → Save(저장), 그다음 홈 화면 게임에서 Settings → Backup → Load(불러오기)."],
+  homeAsk: ["Bring your stars here?", "지금까지 모은 별을 여기로 가져올까요?"],
+  homePaste: ["Paste my stars", "내 별 붙여 넣기"],
+  homeNew: ["Start new", "새로 시작"],
+  homeNoCode: ["First, in Safari or KakaoTalk, tap \"{fullScreen}\", then \"{copy}\".", "먼저 사파리나 카톡에서 '{fullScreen}'을 누르고, '{copy}'를 눌러 주세요."],     // (the clipboard had no code in it)
+  homeRefused: ["Touch and hold the box, tap \"Paste\", then tap \"Load\".", "위 칸을 길게 눌러 '붙여넣기'를 한 다음, 'Load'를 눌러 주세요."],     // (the phone didn't let the game read the clipboard: she pastes by hand)
+  starsHere: ["Your stars are here!", "별이 모두 여기 있어요!"],
+  ok: "OK",
   madeByFor: "Made with love by {by} for {for}.",
   madeWithLove: "Made with love.",                // until DEDICATION (below) has the names
   thanks: "Thank you for playing!",
@@ -42,6 +52,8 @@ window.UI_TEXT = {
   backupLoadTitleKorean: "백업 불러오기",
   backupLoadHelp: "Paste your backup code here.",
   backupLoadHelpKorean: "백업 코드를 여기에 붙여 넣으세요.",
+  backupLoadPasted: "Pasted! Now tap \"Load\".",          // (instead, when "Paste my stars" filled the box)
+  backupLoadPastedKorean: "붙여 넣었어요! 이제 'Load'를 눌러 주세요.",
   backupLoadGo: "Load",
   backupCopiedKorean: "코드를 복사했어요. 메모에 붙여 넣으세요.",
   backupEmpty: "Paste your code first.",
@@ -74,7 +86,6 @@ window.UI_TEXT = {
   goodNight: "Good night",           // closes the page at bedtime
   diaryClose: "Close",
   diaryDay: "Day {day}",
-  lunarDate: "음력 {month}월 {day}일",
   diaryEmpty: "No pages yet.",       // her diary before her first night
   diaryEmptyKorean: "오늘 밤 자기 전에 첫 그림일기를 써요.",
   diaryBack: "Back a page",          // (for screen readers: the ‹ and › buttons)
